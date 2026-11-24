@@ -53,8 +53,11 @@ RC_BOT_CHAT=...
 mkdir -p ~/rc-work
 ```
 
-Claude Code must trust the folder once. ASK the user to run, in their own
-terminal: `cd ~/rc-work && claude`, accept the trust question, then type `/exit`.
+Claude Code must trust the folder once, or every session the panel starts
+hangs on the trust question. If you (this Claude Code) were started in
+`~/rc-work`, it is already trusted: go on. Otherwise ASK the user to open a
+second terminal, run `cd ~/rc-work && claude`, answer "Yes, I trust this
+folder", type `/exit`, and tell you when done.
 
 ## 4a. Install on macOS (launchd)
 
@@ -83,8 +86,7 @@ Then `loginctl enable-linger "$USER"` so the services keep running after logout
 ## 5. Verify
 
 ```
-sleep 5
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:PORT/api/state      # 401 = up and protected
+for i in $(seq 1 20); do c=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:PORT/api/state); [ "$c" = 401 ] && break; python3 -c 'import time; time.sleep(1)'; done; echo "$c"   # 401 = up and protected
 cd REPO && RC_PANEL_PORT=PORT /usr/bin/python3 rc_panel.py --url              # login URL with the token
 curl -s -o /dev/null -w '%{http_code}\n' "$(RC_PANEL_PORT=PORT /usr/bin/python3 rc_panel.py --url | head -1)"  # 302
 tail -n 20 ~/.vibe-wars/rc-guardian.log

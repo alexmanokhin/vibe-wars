@@ -78,7 +78,7 @@ def with_lock(fn):
 # ---------------------------------------------------------------- process view
 
 def ps_rows():
-    out = subprocess.run(["ps", "-Ao", "pid=,args="],
+    out = subprocess.run(G.PS.split() + ["pid=,args="],
                          capture_output=True, text=True,
                          errors="replace").stdout  # см. G.sh(): ps рвёт UTF-8
     rows = []
@@ -91,7 +91,7 @@ def ps_rows():
 
 def ps_tree():
     """(pid, ppid, args) — нужен там, где процесс опознаётся через родителя."""
-    out = subprocess.run(["ps", "-Ao", "pid=,ppid=,args="],
+    out = subprocess.run(G.PS.split() + ["pid=,ppid=,args="],
                          capture_output=True, text=True, errors="replace").stdout
     rows = []
     for line in out.splitlines():
@@ -5678,6 +5678,13 @@ def act_new(target, wait_link=True):
 
     name = G.make_name(" ".join(text.split()), "new")
     key = "new-%d" % int(time.time())
+    if not os.path.isdir(G.WORKDIR):
+        raise ValueError("the work folder %s does not exist: run "
+                         "mkdir -p %s" % (G.WORKDIR, G.WORKDIR))
+    if not CFG.workdir_trusted():
+        raise ValueError("Claude Code does not trust the work folder yet. In a "
+                         "terminal run: cd %s && claude, answer \"Yes, I trust "
+                         "this folder\", then /exit and try again" % G.WORKDIR)
     # a fresh install: Claude creates the project folder only on the first session
     os.makedirs(G.PROJ, exist_ok=True)
     before = set(os.listdir(G.PROJ))

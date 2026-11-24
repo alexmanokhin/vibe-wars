@@ -57,9 +57,8 @@ CLAUDE_BIN = CFG.CLAUDE
 # а не импортированы — сторож намеренно не зависит от гардиана, чтобы
 # зависший гардиан не утащил за собой и тревогу.
 IS_LINUX = sys.platform.startswith("linux")
-# На Linux ps смотрит только на своего пользователя: рядом чужие процессы
-# (см. PS в гардиане). На macOS остаётся -A.
-PS = f"ps -u {os.getuid()} -o" if IS_LINUX else "ps -Ao"
+# Only this user's processes (see PS in rc_guardian.py).
+PS = f"ps -u {os.getuid()} -o" if IS_LINUX else f"ps -x -U {os.getuid()} -o"
 # Имя машины в тревогах; на мини так и осталось «Mac mini».
 BOX = os.uname().nodename.split(".")[0] if IS_LINUX else "Mac mini"
 
@@ -514,7 +513,7 @@ def reap_stale_dev_servers(st, dry=False):
         return
     st["dev_reap_ts"] = time.time()
     save_state(st)
-    out = sh("ps -axo pid=,ppid=,etime=,command=")
+    out = sh(PS + " pid=,ppid=,etime=,command=")
     gone = []
     for line in out.splitlines():
         f = line.split(None, 3)

@@ -18,19 +18,19 @@ Not affiliated with Anthropic.
 
 ## Install
 
-Open Claude Code in any folder (not the home folder) and paste:
+1. Open a terminal and start Claude Code in the folder your sessions will use:
 
-```
-Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
-```
+   ```
+   mkdir -p ~/rc-work && cd ~/rc-work && claude
+   ```
 
-Or clone it yourself and give it to Claude Code:
+   Answer "Yes, I trust this folder".
 
-```
-git clone https://github.com/alexmanokhin/vibe-wars ~/vibe-wars
-cd ~/vibe-wars
-claude "Read INSTALL.md and install this for me."
-```
+2. Paste this into Claude Code:
+
+   ```
+   Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
+   ```
 
 Claude checks the prerequisites, asks only what it must, installs the
 background services (launchd on macOS, systemd on Linux), starts them and
@@ -83,19 +83,19 @@ v0.1. Some UI strings and many code comments are still in Russian.
 
 ## Установка
 
-Откройте Claude Code в любой папке (не в домашней) и вставьте:
+1. Откройте терминал и запустите Claude Code в папке, где будут жить сессии:
 
-```
-Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
-```
+   ```
+   mkdir -p ~/rc-work && cd ~/rc-work && claude
+   ```
 
-Или склонируйте сами и отдайте Claude Code:
+   На вопрос о папке ответьте «Yes, I trust this folder».
 
-```
-git clone https://github.com/alexmanokhin/vibe-wars ~/vibe-wars
-cd ~/vibe-wars
-claude "Read INSTALL.md and install this for me."
-```
+2. Вставьте в Claude Code:
+
+   ```
+   Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
+   ```
 
 Claude проверит требования, задаст только нужные вопросы, установит фоновые
 службы (launchd на Mac, systemd на Linux), запустит их и покажет адрес.

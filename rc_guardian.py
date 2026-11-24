@@ -95,12 +95,10 @@ RCLOG = os.path.join(LOGDIR, "claude-rc.log")
 # Служба демона: launchd-ярлык на macOS, пользовательский юнит systemd на Linux.
 DAEMON_LABEL = CFG.LABEL_PREFIX + ".remote-control"
 DAEMON_UNIT = CFG.UNIT_PREFIX + "-remote-control.service"
-# ⛔ На Linux ps смотрит только на СВОЕГО пользователя. Мак — машина одного
-# человека, и `ps -A` там видит только своё; на a Linux VPS рядом живут чужие
-# агенты и чужой claude под root, и `-A` записал бы их демон в наш, а их
-# сессии — в наши живые. На macOS остаётся `-A`: pgrep там не всегда читает
-# argv launchd-процессов, а `ps -A` читает.
-PS = f"ps -u {os.getuid()} -o" if IS_LINUX else "ps -Ao"
+# Only this user's processes: on a shared machine another user's claude is not
+# ours (its daemon and sessions would be counted as ours). On macOS `-x -U uid`
+# lists launchd-spawned processes with their argv, like `-A` (pgrep may not).
+PS = f"ps -u {os.getuid()} -o" if IS_LINUX else f"ps -x -U {os.getuid()} -o"
 SNAP = CFG.state("RC_LIVE.md")
 CLAUDE = CFG.CLAUDE
 # ⛔ 09-29: macOS privacy (TCC) knows claude by its file PATH, and every update

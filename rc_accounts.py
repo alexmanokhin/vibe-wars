@@ -339,7 +339,7 @@ def forget(email):
 
 def _signin_running():
     try:
-        out = subprocess.run(["/bin/ps", "-Ao", "args="], capture_output=True,
+        out = subprocess.run(["/bin/ps", "-x", "-U", str(os.getuid()), "-o", "args="], capture_output=True,
                              text=True, timeout=10).stdout
     except (OSError, subprocess.SubprocessError):
         return False

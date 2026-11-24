@@ -55,6 +55,34 @@ WORKDIR = os.path.realpath(os.path.expanduser(
 # not a letter or digit replaced by "-" (/Users/me/rc-work -> -Users-me-rc-work).
 PROJ = os.path.join(CLAUDE_HOME, "projects", re.sub(r"[^A-Za-z0-9]", "-", WORKDIR))
 
+
+def workdir_trusted(path=None):
+    """True when Claude Code has the trust question answered for the work folder
+    (or for a folder above it). An untrusted folder makes every new session hang
+    on that question in the background, so the panel checks this first."""
+    import json
+    path = os.path.realpath(path or WORKDIR)
+    cfg_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    cands = [os.path.join(cfg_dir, ".claude.json")] if cfg_dir else []
+    cands.append(os.path.join(HOME, ".claude.json"))
+    for f in cands:
+        try:
+            with open(f) as fh:
+                projects = json.load(fh).get("projects") or {}
+        except (OSError, ValueError):
+            continue
+        p = path
+        while True:
+            if (projects.get(p) or {}).get("hasTrustDialogAccepted"):
+                return True
+            up = os.path.dirname(p)
+            if up == p:
+                break
+            p = up
+        return False
+    return False
+
+
 # Prefix of session names in the Claude app ("<prefix>-<name>").
 NAME_PREFIX = os.environ.get("RC_NAME_PREFIX") or NAME
 

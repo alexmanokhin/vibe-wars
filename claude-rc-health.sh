@@ -17,11 +17,11 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 PY=/usr/bin/python3; [ -x "$PY" ] || PY=python3
 LABEL_PREFIX="${RC_LABEL_PREFIX:-com.vibe-wars}"
 UNIT_PREFIX="${RC_UNIT_PREFIX:-vibe-wars}"
-# Same daemon log location as rc_guardian.py; ps only our own processes on
-# Linux (another user's claude on a shared box is not ours).
+# Same daemon log location as rc_guardian.py; ps only our own processes
+# (another user's claude on a shared box is not ours).
 OS=$(uname -s)
 if [ "$OS" = Darwin ]; then
-  LOGDIR="$HOME/Library/Logs"; PS="ps -Ao"
+  LOGDIR="$HOME/Library/Logs"; PS="ps -x -U $(id -u) -o"
 else
   LOGDIR="$HOME/.claude/logs"; PS="ps -u $(id -u) -o"
 fi

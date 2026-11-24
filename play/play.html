@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b0a1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>HQ</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect x='3' y='4' width='10' height='9' fill='%23ff8a3d'/%3E%3Crect x='4' y='3' width='8' height='1' fill='%23ff8a3d'/%3E%3Crect x='6' y='7' width='1' height='2' fill='%23160c2a'/%3E%3Crect x='9' y='7' width='1' height='2' fill='%23160c2a'/%3E%3Crect x='5' y='13' width='2' height='2' fill='%23b4521b'/%3E%3Crect x='9' y='13' width='2' height='2' fill='%23b4521b'/%3E%3C/svg%3E">
+{{FONTS}}
+<link rel="stylesheet" href="{{CSS}}">
+</head>
+<body>
+<div id="sky" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<header id="hud">
+  <div class="cmdr" id="cmdr" title="Commander">
+    <canvas id="me" width="16" height="16"></canvas>
+    <div class="cmdr-txt">
+      <div class="lvl"><b id="lv">LV 1</b><span id="rank">Desert Kid</span></div>
+      <div class="xprow"><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0 / 120 XP</span></div><em id="xpnum"></em></div>
+    </div>
+  </div>
+  <div class="chip streak" id="streak" title="Days in a row with work shipped"><i data-ico="flame"></i><b>0</b></div>
+  <div class="meter flow" id="flow" title="FLOW fills when you send while agents work. Half = ×1.5 XP, full = ×2. It drains when nothing happens.">
+    <span class="lbl">FLOW</span><div class="bar"><i></i></div><b class="mult">×1</b>
+  </div>
+  <div class="power" id="power" role="button" tabindex="0" title="Limits of every account (L)">
+    <div class="meter pw" id="pw5h" title="5-hour window"><span class="lbl">5H</span><div class="bar"><i></i><u class="pace"></u></div><b>—</b><em></em></div>
+    <div class="meter pw" id="pwwk" title="Weekly limit"><span class="lbl">WEEK</span><div class="bar"><i></i><u class="pace"></u></div><b>—</b><em></em></div>
+  </div>
+  <div class="vitals" id="vitals" aria-label="Ship systems" role="button" tabindex="0" title="Ship systems (V)">
+    <div class="vt" id="vt-mem"><span class="vl">MEM</span><i class="vb"><u></u></i><b>…</b></div>
+    <div class="vt" id="vt-cpu"><span class="vl">CPU</span><i class="vb"><u></u></i><b>…</b></div>
+    <div class="vt" id="vt-crew"><span class="vl">CREW</span><i class="vb"><u></u></i><b>…</b></div>
+    <div class="vt" id="vt-disk"><span class="vl">DISK</span><i class="vb"><u></u></i><b>…</b></div>
+  </div>
+  <div class="hudbtns">
+    <button id="fleetbtn" class="hb" title="Fleet: every session on one screen (G)" data-ico="group"></button>
+    <button id="trobtn" class="hb" title="Trophies and battle log (T)" data-ico="trophy"></button>
+    <button id="devbtn" class="hb devbtn" title="Machine: switch the whole HQ to another one" hidden></button>
+    <button id="accbtn" class="hb" title="Account: switch to another one (A)" data-ico="user"></button>
+    <button id="settbtn" class="hb" title="Ship settings: sounds, music, crew (S)" data-ico="sliders"></button>
+    <button id="mus" class="hb" title="Background music (B)" data-ico="music"></button>
+    <button id="snd" class="hb" title="Sound on/off (M)" data-ico="volume-3"></button>
+    <button id="ntf" class="hb" title="Notify me when an agent finishes" data-ico="notification-off"></button>
+    <button id="helpb" class="hb" title="Controls (?)" data-ico="question"></button>
+    <a href="/" class="hb" title="Classic panel" data-ico="dashboard"></a>
+  </div>
+</header>
+
+<main id="hq">
+  <section id="board" aria-label="Agents">
+    <div class="boardtop">
+      <div class="today" id="today"></div>
+      <button class="recruit" id="recruit" title="Start a new session (R)"><i data-ico="user-plus"></i>RECRUIT</button>
+    </div>
+    <div class="hqs" id="hqs"><input id="hqq" type="search" autocomplete="off" spellcheck="false" placeholder="SEARCH ALL SESSIONS  (Ctrl+K)" aria-label="Search all sessions"><span id="hqqn"></span></div>
+    <div id="hqres" hidden></div>
+    <section id="launches" class="lane launch" hidden></section>
+    <div id="lanes"></div>
+    <div id="boardfoot"></div>
+  </section>
+
+  <section id="stage" aria-label="Agent chat">
+    <div id="stagebar">
+      <button class="back" id="back" title="Back to HQ (Esc)" data-ico="chevron-left"></button>
+      <span class="comm ok" id="comm" title="link to the mini: good"><i></i><i></i><i></i><i></i></span>
+      <div class="stpix"><canvas id="stagepix" width="16" height="16"></canvas></div>
+      <div class="st-txt"><b id="st-name">Pick an agent</b><span id="st-sub"></span></div>
+      <button id="st-proj" class="projchip" hidden title="Project: click to move this session to another one"></button>
+      <div class="st-acts">
+        <button id="st-stop" class="hb" title="Stop the current step (like Esc in the terminal)" hidden data-ico="debug-stop"></button>
+        <button id="st-compact" class="hb stc" title="Compact: squeeze this agent's context into a short summary (/compact). Every next message gets cheaper." hidden><i data-ico="archive"></i><span class="cw">COMPACT</span><span class="cn"></span></button>
+        <button id="st-more" class="hb" title="Details: id, messages, steps, pid" data-ico="more-horizontal"></button>
+        <button id="st-next" class="hb" title="Next agent waiting for you (N)" data-ico="next"></button>
+        <button id="st-done" class="hb" title="Mission complete: stop and retire this agent" data-ico="flag"></button>
+        <button id="st-del" class="hb stdel" title="Delete this session for good (transcript kept 7 days in ~/.claude/rc-trash)" hidden data-ico="trash"></button>
+      </div>
+    </div>
+    <div class="stagewrap">
+      <iframe id="chat" aria-label="Agent chat" allow="microphone; clipboard-read; clipboard-write"></iframe>
+      <div id="stage-empty">
+        <div class="radar"><i class="sweep"></i><div class="hub"><canvas id="emptypix" width="16" height="16"></canvas></div><div id="blips"></div></div>
+        <span class="radar-cap">SCANNING · PICK A BLIP</span>
+        <p><b>Pick an agent</b> on the board or on the radar, or press <kbd>N</kbd> for the next one waiting for you.</p>
+      </div>
+      <div id="bay" hidden>
+        <div class="bay-in bay-top">
+          <div class="hangar" id="hangar">
+            <div class="hdoor"><i class="hstars"></i><i class="hstars s2"></i><i class="hjump"></i></div>
+            <div class="hpillar l"></div><div class="hpillar r"></div>
+            <div class="hfloor"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <canvas id="bay-ship" width="48" height="26"></canvas>
+            <canvas id="bay-bot" width="16" height="16"></canvas>
+            <span id="bay-count"></span>
+            <span class="hlabel">HANGAR 3</span>
+            <div class="warp" aria-hidden="true"><i></i></div>
+            <div class="hplanet" aria-hidden="true"></div>
+            <div class="hhud"><span id="bay-hud-l"></span><span id="bay-hud-r"></span></div>
+            <div class="harrive"><canvas id="bay-agent" width="16" height="16"></canvas><b>AGENT ONLINE</b><span id="bay-agent-name"></span></div>
+            <div class="halert"><b>LAUNCH FAILED</b></div>
+          </div>
+        </div>
+        <div id="bay-form" class="bay-in">
+          <div class="bay-kicker" id="bay-kick">LAUNCH BAY · NEW AGENT</div>
+          <div class="bay-mode" id="bay-mode" role="radiogroup" aria-label="Where the order goes">
+            <button type="button" role="radio" data-m="new"><i data-ico="user-plus"></i><b>NEW AGENT</b><small>a fresh session from zero</small></button>
+            <button type="button" role="radio" data-m="continue"><i data-ico="repeat"></i><b>CONTINUE THE MATCH</b><small>finds the live or archived session doing this work and sends it there</small></button>
+          </div>
+          <div class="brief">
+            <div class="brief-h"><label for="bay-text">MISSION BRIEFING</label><button type="button" class="bay-mic" id="bay-mic" title="Dictate the briefing, press again to stop" hidden><i data-ico="mic"></i><span>DICTATE</span></button></div>
+            <textarea id="bay-text" rows="5" placeholder="What should the new agent do?"></textarea>
+            <div id="bay-rec" hidden><i class="rd"></i><b>REC</b><canvas width="640" height="56"></canvas><em>0:00</em></div>
+          </div>
+          <div id="bay-files"></div>
+          <div class="bay-row">
+            <label><span>SHIP CLASS</span><select id="bay-model"></select></label>
+            <label><span>THRUST</span><select id="bay-effort"></select></label>
+            <button class="go launch" id="bay-go"><i data-ico="rocket"></i><span id="bay-go-t">LAUNCH</span></button>
+          </div>
+          <p class="bay-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> launches · the mic dictates, the text lands in the briefing · drop files here to attach them · it boots in the hangar and lands on the board, you can keep working meanwhile</p>
+        </div>
+        <div id="bay-seq" class="bay-in" hidden>
+          <ol class="fpath" id="bay-path"></ol>
+          <div class="mission">
+            <div class="bay-kicker bay-state" id="bay-state">LAUNCHING</div>
+            <p id="bay-title"></p>
+            <div class="mchips" id="bay-chips"></div>
+          </div>
+          <p class="bay-hint" id="bay-note"></p>
+          <div class="seqbtns">
+            <button class="go" id="bay-open" hidden><i data-ico="chevron-right"></i>OPEN AGENT<em></em></button>
+            <button class="go" id="bay-retry" hidden><i data-ico="reload"></i>RETRY</button>
+            <button class="hb wide" id="bay-edit" hidden><i data-ico="edit"></i>EDIT THE ORDER</button>
+            <button class="hb wide" id="bay-board"><i data-ico="home"></i>BACK TO THE BOARD</button>
+            <button class="hb wide" id="bay-again"><i data-ico="user-plus"></i>LAUNCH ANOTHER</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<section id="fleet" hidden aria-label="Fleet: every session at once">
+  <div class="fl-head">
+    <h2><i data-ico="group"></i>FLEET</h2>
+    <div class="fl-sum" id="fl-sum" role="toolbar" aria-label="Show one kind of session"></div>
+    <span class="fl-hint">click a ship to open its chat · <kbd>1</kbd>…<kbd>9</kbd> · <kbd>G</kbd> or <kbd>Esc</kbd> closes</span>
+    <button class="hb" id="fl-recruit" title="Start a new session (R)" data-ico="user-plus"></button>
+    <button class="hb" id="fl-close" title="Back to the board (G or Esc)" data-ico="close"></button>
+  </div>
+  <div id="fl-grid"></div>
+  <p id="fl-empty" hidden>No live agents right now. Recruit one (<kbd>R</kbd>) or wake one from the hangar below.</p>
+  <div class="fl-hangar" id="fl-hangar"></div>
+</section>
+
+<nav id="dock">
+  <button data-go="hq"><span class="di" data-ico="home"></span><span>HQ</span></button>
+  <button data-go="fleet"><span class="di" data-ico="group"></span><span>FLEET</span></button>
+  <button data-go="next"><span class="di" data-ico="zap"></span><span>NEXT</span><i id="dockn"></i></button>
+  <button data-go="recruit"><span class="di" data-ico="user-plus"></span><span>RECRUIT</span></button>
+</nav>
+
+<div id="dropov" aria-hidden="true">
+  <div class="dz-head"><b><i data-ico="gift"></i>Drop it on an agent</b><span id="dz-sub">the open chat takes it by default</span></div>
+  <div id="dz-targets"></div>
+</div>
+<div id="uptray" aria-live="polite"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="banner" aria-live="assertive"></div>
+<div id="hypebox" aria-hidden="true"></div>
+<div id="cine" hidden aria-hidden="true">
+  <canvas id="cine-cv"></canvas>
+  <div id="cine-count"></div>
+  <div id="cine-cap"></div>
+  <div id="cine-hud">
+    <div class="chud-top"><span id="cine-phase">IN JUMP</span><span id="cine-secs"></span></div>
+    <div class="chud-box">
+      <ol class="fpath" id="cine-path"></ol>
+      <div class="chud-st" id="cine-st"></div>
+      <p id="cine-title"></p>
+      <div class="mchips" id="cine-chips"></div>
+    </div>
+  </div>
+  <div id="cine-arrive"><canvas id="cine-agent" width="16" height="16"></canvas><b>AGENT ONLINE</b><span id="cine-aname"></span><em>docking into the chat…</em></div>
+  <div id="cine-fail"><b>LAUNCH FAILED</b><span id="cine-why"></span>
+    <div class="cf-btns"><button class="go" id="cine-retry"><i data-ico="reload"></i>RETRY</button><button class="hb wide" id="cine-edit"><i data-ico="edit"></i>EDIT THE ORDER</button><button class="hb wide" id="cine-close"><i data-ico="close"></i>CLOSE</button></div></div>
+  <div class="cine-skip" id="cine-skip">click or Esc to skip · the launch keeps going</div>
+</div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div id="projpick" hidden><div class="pp-head">MOVE TO PROJECT</div><div id="pp-list"></div><button class="pp-new" id="pp-new">+ NEW PROJECT…</button></div>
+<div id="modal" hidden><div class="mbox"><p id="mtext"></p><div class="mbtns"><button id="mno">Cancel</button><button id="myes" class="go">OK</button></div></div></div>
+
+<div id="tro" hidden>
+  <div class="hbox">
+    <h2>TROPHIES <span id="achn"></span></h2>
+    <div id="ach"></div>
+    <h2 class="h2b">BATTLE LOG</h2>
+    <div id="log"></div>
+    <button class="go" id="trook">CLOSE</button>
+  </div>
+</div>
+
+<div id="prof" hidden>
+  <div class="hbox profbox">
+    <div class="prof-top">
+      <canvas id="prof-pix" width="16" height="16"></canvas>
+      <div class="prof-id">
+        <div class="bay-kicker">PILOT PROFILE</div>
+        <h2 id="prof-rank"></h2>
+        <div class="prof-lv" id="prof-lv"></div>
+        <div class="xpbar big"><i id="prof-xp"></i></div>
+        <div class="prof-xpt" id="prof-xpt"></div>
+      </div>
+    </div>
+    <div class="prof-acc"><i data-ico="card-id"></i><span>ACCOUNT</span><b id="prof-accn"></b><button class="hb" id="prof-accb"><i data-ico="repeat"></i>SWITCH</button></div>
+    <div class="prof-stats" id="prof-stats"></div>
+    <h4>RANKS</h4>
+    <div class="prof-path" id="prof-path"></div>
+    <h4>TROPHIES <span id="prof-achn"></span></h4>
+    <div class="prof-ach" id="prof-ach"></div>
+    <button class="go" id="prof-ok">CLOSE</button>
+  </div>
+</div>
+
+<div id="sys" hidden>
+  <div class="hbox sysbox">
+    <h2>SHIP SYSTEMS <span id="sys-host"></span></h2>
+    <div id="sys-list"></div>
+    <p class="hint">A cleanup agent is an ordinary session: it gets the live numbers and the rules of what it may and may not touch, and lands on the board with a report.</p>
+    <button class="go" id="sysok">CLOSE</button>
+  </div>
+</div>
+
+<div id="devm" hidden>
+  <div class="hbox devbox">
+    <h2>MACHINE</h2>
+    <p class="sysp">The whole HQ runs against the machine you pick: its agents, limits and accounts. Signing in, switching the account and launching agents happen THERE. This Mac stays the hub; your level and trophies stay yours.</p>
+    <div id="devlist"></div>
+    <button class="hb wide" id="devok"><i data-ico="check"></i>CLOSE</button>
+  </div>
+</div>
+
+<div id="acc" hidden>
+  <div class="hbox accbox">
+    <h2>PILOT ACCOUNT</h2>
+    <div class="acccur"><i data-ico="card-id"></i><div><span>ACTIVE NOW</span><b id="acc-now"></b><em>Every agent on this Mac runs on it, and the 5H and WEEK power bars are its limits.</em></div></div>
+    <p class="accmsg bad" id="acc-warn" hidden></p>
+    <h4>POWER BY ACCOUNT</h4>
+    <div id="acc-lims"></div>
+    <div id="acc-auto" hidden></div>
+    <h4>SWITCH TO ANOTHER ACCOUNT</h4>
+    <div class="accrow" id="acc-start">
+      <input id="acc-mail" type="email" placeholder="the other account's email (optional)" autocomplete="off" spellcheck="false">
+      <button class="go" id="acc-go"><i data-ico="login"></i>SIGN IN</button>
+    </div>
+    <div class="accknown" id="acc-known"></div>
+    <ol class="accflow" id="acc-flow" hidden>
+      <li id="acc-f1"><b>1</b><div><span>Open the sign-in link and confirm it</span><a id="acc-url" class="hb wide" target="_blank" rel="noreferrer"><i data-ico="external-link"></i><em>waiting for the link…</em></a></div></li>
+      <li id="acc-f2"><b>2</b><div><span>Paste the code the browser shows</span><div class="accrow"><input id="acc-code" placeholder="code from the browser" autocomplete="off" spellcheck="false"><button class="go" id="acc-ok">CONFIRM</button></div></div></li>
+      <li id="acc-f3"><b>3</b><div><span>Switch: the guardian relaunches the live agents on the new account by itself, it takes a few minutes</span></div></li>
+    </ol>
+    <p class="accmsg" id="acc-msg" hidden></p>
+    <button class="hb wide" id="acc-cancel" hidden><i data-ico="close"></i>CANCEL SIGN-IN</button>
+    <details class="accadv"><summary>If the guardian missed a switch</summary>
+      <p>It notices an account switch by itself and moves the sessions over. These are for when it did not, say the account changed while the mini slept.</p>
+      <div class="accrow"><button class="hb wide" id="acc-check"><i data-ico="shield"></i>CHECK READINESS</button><button class="hb wide danger" id="acc-mig"><i data-ico="repeat"></i>MIGRATE SESSIONS</button></div>
+      <pre id="acc-rep" hidden></pre>
+    </details>
+    <button class="go" id="accok">CLOSE</button>
+  </div>
+</div>
+
+<div id="sett" hidden>
+  <div class="hbox settbox">
+    <h2>SHIP SETTINGS</h2>
+    <div class="srow"><span>VOLUME</span><input type="range" id="vol" min="0" max="100"><b id="volv"></b></div>
+    <div class="srow"><span>MUSIC</span><input type="range" id="mvol" min="0" max="100"><b id="mvolv"></b><button class="hb" id="mus2"></button></div>
+    <div class="srow"><span>TRACK</span><input id="musurl" placeholder="optional: a YouTube link to play instead of the built-in ambient" autocomplete="off"></div>
+    <h4>SOUNDS</h4>
+    <div class="sgrid" id="sgrid"></div>
+    <h4>HYPE</h4>
+    <div class="hyperow" id="hyperow"><button class="hb" data-hype="loud">LOUD</button><button class="hb" data-hype="clean">CLEAN</button><button class="hb" data-hype="off">OFF</button><span>pop-up words on sends, results and wins</span></div>
+    <h4>MORE</h4>
+    <div class="morerow"><button class="hb" id="sett-ntf"><i data-ico="notification"></i>NOTIFICATIONS</button><button class="hb" id="sett-help"><i data-ico="question"></i>CONTROLS</button><button class="hb" id="sett-cine"><i data-ico="rocket"></i>LAUNCH SCENE</button><a class="hb" href="/"><i data-ico="dashboard"></i>CLASSIC PANEL</a></div>
+    <h4>CREW</h4>
+    <div class="crewrow"><button class="hb" data-crew="bots"><i data-ico="bot"></i>BOTS</button><button class="hb" data-crew="pilots"><i data-ico="heart"></i>PILOTS</button></div>
+    <button class="go" id="settok">CLOSE</button>
+  </div>
+</div>
+
+<div id="help" hidden>
+  <div class="hbox">
+    <h2>HOW TO PLAY</h2>
+    <p>Every Claude session is an <b>agent</b> on your squad. Keep them busy, answer fast, ship things. The server keeps score even when this page is closed.</p>
+    <div class="cols">
+      <div>
+        <h4>Controls</h4>
+        <ul>
+          <li><kbd>1</kbd>…<kbd>9</kbd> open an agent</li>
+          <li><kbd>N</kbd> / <kbd>J</kbd> next agent waiting for you, <kbd>K</kbd> back</li>
+          <li><kbd>/</kbd> type to the open agent</li>
+          <li><kbd>Esc</kbd> back to HQ</li>
+          <li><kbd>R</kbd> recruit a new agent</li>
+          <li><kbd>G</kbd> the fleet: every session on one screen, with what each one is doing</li>
+          <li><i data-ico="edit"></i> on a card renames it (or double-click the name, or <kbd>F2</kbd>) · <i data-ico="archive"></i> puts it in the archive, UNDO brings it back · <i data-ico="trash"></i> deletes it for good</li>
+          <li><kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>Cmd</kbd>+<kbd>K</kbd> search every session, archived ones too: names, summaries and the whole conversation; <kbd>Enter</kbd> opens the first hit, <kbd>Esc</kbd> clears</li>
+          <li><kbd>T</kbd> trophies · <kbd>P</kbd> your profile · <kbd>S</kbd> settings · <kbd>M</kbd> sound · <kbd>B</kbd> music · <kbd>?</kbd> this help</li>
+          <li>Inside a chat: <kbd>Alt</kbd>+<kbd>↓</kbd>/<kbd>↑</kbd> or <kbd>Ctrl</kbd>+<kbd>J</kbd>/<kbd>K</kbd> switch agents</li>
+        </ul>
+      </div>
+      <div>
+        <h4>XP</h4>
+        <ul>
+          <li><i data-ico="arrow-right"></i> command <b>+5</b>, ×1.5 / ×2 with FLOW</li>
+          <li><i data-ico="zap"></i> reply within 2 min of a finish <b>+10</b></li>
+          <li><i data-ico="check"></i> an agent finishes a turn <b>+10…40</b></li>
+          <li><i data-ico="git-commit"></i> commit <b>+15</b> · <i data-ico="rocket"></i> deploy <b>+40</b> · <i data-ico="article"></i> artifact <b>+25</b></li>
+          <li><i data-ico="user-plus"></i> recruit <b>+15</b> · <i data-ico="flag"></i> mission complete <b>+8</b></li>
+          <li>Trophy <b>+50</b></li>
+        </ul>
+      </div>
+    </div>
+    <p class="hint">Sounds, music and the crew style are in the settings: <kbd>S</kbd> or the sliders button.</p>
+    <p class="hint">Power bars: the tick is where you should be by now. Far below it = unused power, launch more agents. Above it = you will hit the limit early.</p>
+    <button class="go" id="helpok">GOT IT</button>
+  </div>
+</div>
+
+<script>const UI_VER={{UI_VER}};</script>
+<script src="{{JS}}"></script>
+</body>
+</html>

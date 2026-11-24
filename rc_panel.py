@@ -1148,7 +1148,7 @@ document.addEventListener('click', function(ev){
 });
 async function killProc(pid, uuid, main, label){
   if(uuid && main){
-    if(!confirm('Kill session «'+label+'» (pid '+pid+')?'+NL+NL+'It goes to «Снятые»; «Поднять» brings it back.')) return;
+    if(!confirm('Kill session «'+label+'» (pid '+pid+')?'+NL+NL+'It goes to Retired; Revive brings it back.')) return;
     await act('kill', uuid, 'kill '+label); return;
   }
   if(!confirm('Kill process '+pid+' «'+label+'»?'+(uuid?(NL+NL+'Only this process, not the whole session.'):''))) return;
@@ -1607,10 +1607,10 @@ function tuiTok(use, t){
 }
 function tuiTitle(use){
   if(!use || !use.steps) return '';
-  return 'за этот прогон: модель написала '+tokShort(use.out)
-        +', отправлено '+tokShort(use.in)
-        +', перечитано из кэша '+tokShort(use.cache_read)
-        +' · ответов модели: '+use.steps;
+  return 'this run: the model wrote '+tokShort(use.out)
+        +', sent '+tokShort(use.in)
+        +', read from cache '+tokShort(use.cache_read)
+        +' · model replies: '+use.steps;
 }
 function tuiText(t, age, use){
   if(!t || !t.kind) return ['',''];
@@ -4115,7 +4115,7 @@ def digest_html(r):
         bits.append("<b>replied:</b> " + esc(d["last_assistant"][:200]))
     if not bits:
         return ""
-    return ('<div class="dig" onclick="openTx(\'%s\')" title="открыть переписку">%s</div>'
+    return ('<div class="dig" onclick="openTx(\'%s\')" title="open the conversation">%s</div>'
             % (esc(r["short"]), "<br>".join(bits)))
 
 
@@ -4140,8 +4140,8 @@ def ctxbar_html(r):
         return ""
     pct = min(100, int(round(used * 100.0 / cap)))
     cls = "ctxbar" + (" hot" if pct >= 80 else (" warm" if pct >= 60 else ""))
-    tail = " · пора /compact" if pct >= 80 else ""
-    return ('<div class="%s" title="контекст сессии, модель %s"><span class="tr">'
+    tail = " · time to /compact" if pct >= 80 else ""
+    return ('<div class="%s" title="session context, model %s"><span class="tr">'
             '<i style="width:%d%%"></i></span><b>%s / %s · %d%%</b>%s</div>'
             % (cls, esc(d.get("model_id") or "?"), pct,
                _tok(used), _tok(cap), pct, esc(tail)))
@@ -4199,7 +4199,7 @@ def opt_select(short, kind, cur, choices, blank, now=""):
                        esc(text if text else label)))
     # data-opt — чтобы после смены найти нужный селект, не разбирая разметку;
     # data-was — куда откатиться, если действие не применилось.
-    return ('<select class="rowopt" title="применится при следующем подъёме"'
+    return ('<select class="rowopt" title="applies on the next restart"'
             ' data-opt="%s" data-was="%s"'
             ' onchange="rowOpt(this,\'%s\',\'%s\')">%s</select>'
             % (kind, esc(cur or ""), esc(short), kind, "".join(opts)))
@@ -4409,7 +4409,7 @@ def flat_html(items):
 def folders_html(items, title):
     groups = {}
     for r in items:
-        groups.setdefault(r.get("project") or "Без проекта", []).append(r)
+        groups.setdefault(r.get("project") or "No project", []).append(r)
     out = []
     for name, rows in sorted(groups.items(),
                              key=lambda kv: (-sum(1 for x in kv[1] if x.get("busy")),
@@ -4618,9 +4618,9 @@ def page(dev_id="", sort_by="projects", light=False, only=None):
     # Когда цифры сняты. `claude -p /usage` — настоящая CLI-сессия, а не чтение
     # файла, поэтому отставание тут нормальное явление и его надо видеть: без
     # отметки «52%» получасовой давности неотличимы от свежих.
-    limits.append('<div class="limage">снято <time data-ts="%d"></time>%s</div>'
+    limits.append('<div class="limage">read <time data-ts="%d"></time>%s</div>'
                   % (int(snap["meta"].get("usage_ts") or 0),
-                     ' · прошлый опрос не удался'
+                     ' · the last poll failed'
                      if snap["meta"].get("usage_stale") else ''))
     limits_html = '<div class="limits">%s</div>' % "".join(limits)
 
@@ -4628,26 +4628,26 @@ def page(dev_id="", sort_by="projects", light=False, only=None):
     # текущий аккаунт, у остальных — цифры на момент, когда они были текущими.
     accs = snap["meta"].get("accounts") or []
     if accs:
-        arows = ['<div class="limage">Аккаунты · жирным текущий</div>']
+        arows = ['<div class="limage">Accounts · current in bold</div>']
         for a in accs:
             name = (a.get("account") or "?").split("@")[0][:18]
             wk = a.get("week")
             if wk is None:
-                right, res, cls = "—", "нет данных", ""
+                right, res, cls = "—", "no data", ""
             elif a.get("week_reset_passed"):
-                right, res, cls = "0%?", "обнулился", ""
+                right, res, cls = "0%?", "reset", ""
             else:
                 right = "%d%%" % wk
                 res = short_reset(a.get("week_resets"))
                 cls = " hot" if wk >= 80 else (" warm" if wk >= 60 else "")
             title = "%s%s · week %s · 5h %s · resets %s" % (
-                a.get("account") or "?", " (текущий)" if a.get("current") else "",
+                a.get("account") or "?", " (current)" if a.get("current") else "",
                 "—" if wk is None else "%d%%" % wk,
                 "—" if a.get("session") is None else "%d%%" % a["session"],
                 a.get("week_resets") or "?")
             arows.append(bar(name, wk, right, title, cls + (" cur" if a.get("current") else ""), "", res))
             if a.get("ts") and not a.get("current"):
-                arows.append('<div class="limage">снято <time data-ts="%d"></time></div>' % int(a["ts"]))
+                arows.append('<div class="limage">read <time data-ts="%d"></time></div>' % int(a["ts"]))
         limits_html += '<div class="limits accs">%s</div>' % "".join(arows)
 
     over = m["live_total"] > m["cap"]
@@ -4678,10 +4678,10 @@ def page(dev_id="", sort_by="projects", light=False, only=None):
     mem_mb = m.get("mem_mb") or 0
     mach = [bar("Live", (m["live_total"] * 100.0 / m["cap"]) if m["cap"] else 0,
                 "%d/%d" % (m["live_total"], m["cap"]),
-                "живых сессий из %d слотов" % m["cap"], hot),
+                "live sessions of %d slots" % m["cap"], hot),
             bar("Load", (m["load1"] * 100.0 / m["load_gate"]) if m["load_gate"] else 0,
                 "%d/%d" % (round(m["load1"]), round(m["load_gate"])),
-                "средняя нагрузка за минуту при пороге очереди %g · клик: процессы"
+                "1-minute load average, queue threshold %g · click: processes"
                 % m["load_gate"], load_hot + " clk",
                 extra=' id="loadbar" onclick="toggleProcs()"')]
     if mem_mb:
@@ -4693,16 +4693,16 @@ def page(dev_id="", sort_by="projects", light=False, only=None):
         if used_mb is None:
             used_mb = mem_mb - m["free_mb"]
             mem_cls = free_hot
-            mem_tip = "занято %d МБ из %d, свободно %d" % (
+            mem_tip = "used %d MB of %d, free %d" % (
                 used_mb, mem_mb, m["free_mb"])
         else:
             pr = m.get("pressure") or 1
             mem_cls = " hot" if pr >= 4 else (" warm" if pr >= 2 else "")
-            mem_tip = ("занято %d МБ из %d (приложения + wired + сжатое, как в "
-                       "Мониторинге системы; кэш файлов macOS отдаёт сам). "
-                       "Давление памяти: %s"
-                       % (used_mb, mem_mb, {1: "норма", 2: "повышенное",
-                                            4: "критическое"}.get(pr, str(pr))))
+            mem_tip = ("used %d MB of %d (apps + wired + compressed, as in "
+                       "Activity Monitor; macOS frees the file cache itself). "
+                       "Memory pressure: %s"
+                       % (used_mb, mem_mb, {1: "normal", 2: "elevated",
+                                            4: "critical"}.get(pr, str(pr))))
         mach.append(bar("Mem", used_mb * 100.0 / mem_mb,
                         _pair(used_mb, mem_mb), mem_tip, mem_cls))
         # Потолок свопа — фактический, а не размер памяти: macOS наращивает его
@@ -4711,7 +4711,7 @@ def page(dev_id="", sort_by="projects", light=False, only=None):
         swap_cap = m.get("swap_total_mb") or mem_mb
         mach.append(bar("Swap", m["swap_mb"] * 100.0 / swap_cap,
                         _pair(m["swap_mb"], swap_cap),
-                        "своп %d МБ из %d" % (m["swap_mb"], swap_cap),
+                        "swap %d MB of %d" % (m["swap_mb"], swap_cap),
                         swap_hot))
     limits_html += '<div class="limits">%s</div>' % "".join(mach)
     # Список процессов раскрывается кликом по Load: сюда JS кладёт /api/procs.

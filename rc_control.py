@@ -1901,7 +1901,7 @@ def _clean_text(v, flat=True):
 
 
 def _cap(txt):
-    return txt if len(txt) <= TX_CHARS else txt[:TX_CHARS] + " …[обрезано]"
+    return txt if len(txt) <= TX_CHARS else txt[:TX_CHARS] + " …[cut]"
 
 
 # Порядок важен: у Bash есть description — короткая человеческая строка, ровно
@@ -2281,7 +2281,7 @@ def digest_refresher(every=DIGEST_EVERY):
 
 SUM_CACHE = CFG.state("rc-summary.json")
 SUM_DIR = CFG.state("rc-sum")
-SUM_V = 1
+SUM_V = 2
 SUM_EVERY = 150           # пауза между проходами
 SUM_BATCH = 2             # сессий за проход — это платные вызовы, не чтение
 # ⛔ Было 12000, и короткий обмен репликами порога не брал: человек написал,
@@ -2385,10 +2385,10 @@ def summary_dirty_sweep():
 NO_USER_SETTINGS = ["--setting-sources", "project"]
 
 SUM_PROMPT = (
-    "Ниже хвост рабочего диалога между человеком и ассистентом. "
-    "Ответь РОВНО одной строкой на русском, не длиннее 90 символов: "
-    "чем эта сессия занята и на чём остановились. "
-    "Без кавычек, без вступлений, без префиксов — только сама строка.\n\n")
+    "Below is the tail of a working conversation between a person and an "
+    "assistant. Reply with EXACTLY one line, at most 90 characters, in the "
+    "language the person writes in: what this session is working on and where "
+    "it stopped. No quotes, no preamble, no prefix: only the line itself.\n\n")
 
 
 def summaries():
@@ -2410,7 +2410,7 @@ def _sum_source(path, size):
             continue
         txt = _msg_text(rec)
         if txt:
-            out.append(("Человек: " if kind == "user" else "Ассистент: ") + txt[:600])
+            out.append(("Person: " if kind == "user" else "Assistant: ") + txt[:600])
     return "\n".join(out[-30:])[:10000]
 
 
@@ -3349,23 +3349,23 @@ def act_kill_proc(target):
     снимает act_kill по uuid (с реестром и очередью)."""
     pid = int((target or {}).get("pid") or 0) if isinstance(target, dict) else int(target or 0)
     if pid <= 1 or pid in (os.getpid(), os.getppid()):
-        raise ValueError("pid %d нельзя убивать из панели" % pid)
+        raise ValueError("pid %d cannot be killed from the panel" % pid)
     name = ""
     for p, _, _, rss, _, _, cmd in _proc_rows():
         if p == pid:
             name = "%s (%d MB)" % (cmd[:60], rss // 1024)
             break
     if not name:
-        return "pid %d уже не существует" % pid
+        return "pid %d no longer exists" % pid
     os.kill(pid, signal.SIGTERM)
     for _ in range(10):
         time.sleep(0.5)
         try:
             os.kill(pid, 0)
         except OSError:
-            return "остановлен %s" % name
+            return "stopped %s" % name
     os.kill(pid, signal.SIGKILL)
-    return "остановлен (SIGKILL) %s" % name
+    return "stopped (SIGKILL) %s" % name
 
 
 # ------------------------------------------------------- перенос между машинами
@@ -3705,7 +3705,7 @@ def act_transfer(target):
     # ⛔ Сначала убить, потом собирать: транскрипт должен быть дописан, и на
     # источнике не должно остаться процесса, который допишет его после отъезда.
     pid = pid_for(uuid)
-    note = kill_tree(pid) if pid is not None else "не была запущена"
+    note = kill_tree(pid) if pid is not None else "was not running"
     blob = make_bundle(uuid)
 
     req = urllib.request.Request(
@@ -3924,7 +3924,7 @@ def act_kill(pref):
     """
     uuid = resolve(pref)
     pid = pid_for(uuid)
-    note = kill_tree(pid) if pid is not None else "не была запущена"
+    note = kill_tree(pid) if pid is not None else "was not running"
 
     def edit():
         reg = G.load(G.REG_PATH, {})
@@ -4015,7 +4015,7 @@ def _bulk_flag(prefs, retired):
             G.save(G.REG_PATH, reg)
         return n
     n = with_lock(edit)
-    word = "снято" if retired else "возвращено в очередь"
+    word = "retired" if retired else "back in the queue"
     return "%s: %d of %d%s" % (word, n, len(good), _tail(bad))
 
 
@@ -4504,7 +4504,7 @@ def act_say(target):
             return note + res
         return {"msg": ("%s%s is not reading its input: nothing has appeared on "
                         "its screen for %d min, the write went nowhere. Restart "
-                        "it — «Queue» then «Поднять», the history is kept."
+                        "it — Queue, then Revive; the history is kept."
                         % (lead, who, int(silent // 60))),
                 "unconfirmed": True, "wedged": True}
     return {"msg": ("%s%s accepted the write, but the message had not appeared "
@@ -4681,7 +4681,7 @@ def act_set_title(target):
     what = ("renamed to «%s»" % value) if value else "name back to automatic"
     out = "%d %s" % (n, what)
     if bad:
-        out += " (не нашлось: %s)" % ", ".join(bad)
+        out += " (not found: %s)" % ", ".join(bad)
     return out
 
 
@@ -4963,14 +4963,14 @@ VOICE_CREDITS_RE = re.compile(
     u"(субтитр|корректор\\s|DimaTorzok|Семкин|Егорова|Синецкая)", re.I)
 
 VOICE_FIX_PROMPT = (
-    "Ниже расшифровка голосового сообщения разработчика. Она сделана "
-    "автоматически и содержит ошибки распознавания.\n"
-    "Почини ТОЛЬКО их: названия инструментов и сервисов (Vercel, Supabase, "
-    "ЮКасса, Claude, Telegram, tailscale, systemd и подобные), термины, "
-    "пунктуацию и разбивку на предложения.\n"
-    "⛔ Ничего не добавляй, не сокращай и не пересказывай. Смысл и порядок "
-    "мыслей оставь как есть. Верни ТОЛЬКО исправленный текст, без "
-    "вступлений и кавычек.\n\n")
+    "Below is an automatic transcript of a developer's voice message. It has "
+    "recognition errors.\n"
+    "Fix ONLY those: names of tools and services (Vercel, Supabase, Claude, "
+    "Telegram, tailscale, systemd and the like), technical terms, punctuation "
+    "and sentence breaks. Keep the language of the transcript.\n"
+    "Do not add, shorten or paraphrase anything. Keep the meaning and the "
+    "order of thoughts. Return ONLY the fixed text, no preamble, no quotes."
+    "\n\n")
 
 
 def _voice_polish(text):
@@ -5176,19 +5176,20 @@ def ingest_token():
 ROUTE_CANDIDATES = 20        # больше не влезает в короткий промпт осмысленно
 
 ROUTE_PROMPT = (
-    "Ты разбираешь надиктованное сообщение разработчика.\n\n"
-    "СДЕЛАЙ ДВЕ ВЕЩИ.\n"
-    "1. Почини ошибки распознавания: названия сервисов и инструментов "
-    "(Vercel, Supabase, ЮКасса, Claude, Telegram, tailscale, systemd и "
-    "подобные), термины, пунктуацию. Ничего не добавляй и не пересказывай — "
-    "смысл и порядок мыслей оставь как есть.\n"
-    "2. Реши, куда это отправить: начать НОВУЮ работу или продолжить одну из "
-    "идущих сессий, список ниже.\n\n"
-    "Продолжением считай только явную отсылку: человек говорит о той же "
-    "задаче, проекте или просит доделать начатое. Если сомневаешься — НОВАЯ. "
-    "Лишняя новая сессия — мелочь, а письмо не в ту сессию путает работу.\n\n"
-    "Ответь ОДНОЙ строкой JSON, без пояснений и без markdown:\n"
-    '{"text":"исправленный текст","action":"new"|"say","session":"id или null"}\n\n')
+    "You are handling a developer's dictated message.\n\n"
+    "DO TWO THINGS.\n"
+    "1. Fix recognition errors: names of services and tools (Vercel, "
+    "Supabase, Claude, Telegram, tailscale, systemd and the like), terms, "
+    "punctuation. Keep the language. Do not add or paraphrase anything; keep "
+    "the meaning and the order of thoughts.\n"
+    "2. Decide where it goes: start NEW work, or continue one of the "
+    "sessions listed below.\n\n"
+    "Count it as a continuation only on an explicit reference: the same task "
+    "or project, or a request to finish what was started. When in doubt, NEW. "
+    "An extra new session is a small cost; a message in the wrong session "
+    "mixes up the work.\n\n"
+    "Reply with ONE line of JSON, no explanation, no markdown:\n"
+    '{"text":"fixed text","action":"new"|"say","session":"id or null"}\n\n')
 
 
 def _route_candidates(limit=ROUTE_CANDIDATES):
@@ -5220,11 +5221,11 @@ def _route(text):
     """
     cands = _route_candidates()
     listing = "\n".join(
-        "%s | %s | %s | %s" % (c["id"], "идёт" if c["live"] else "стоит",
+        "%s | %s | %s | %s" % (c["id"], "live" if c["live"] else "idle",
                                c["project"], c["what"])
-        for c in cands) or "(сессий нет)"
-    prompt = (ROUTE_PROMPT + "СЕССИИ (id | состояние | проект | чем занята):\n"
-              + listing + "\n\nСООБЩЕНИЕ:\n" + text)
+        for c in cands) or "(no sessions)"
+    prompt = (ROUTE_PROMPT + "SESSIONS (id | state | project | what it is doing):\n"
+              + listing + "\n\nMESSAGE:\n" + text)
     try:
         os.makedirs(SUM_DIR)
     except OSError:
@@ -5282,20 +5283,21 @@ CONT_STOP = set("""это этот эта эти того тоже также ч
 только очень всех всего всем было были будет есть который которая которые
 where what when this that with from have will your just please make need""".split())
 CONT_PROMPT = (
-    "Человек запускает работу в одной из своих сессий Claude Code и выбрал "
-    "режим «продолжить подходящую»: найди сессию, в которой уже шла ЭТА работа "
-    "(та же задача, тот же продукт или проект, доделка или следующий шаг "
-    "начатого), чтобы отправить запрос туда.\n\n"
-    "Строка сессии: id | состояние (live = работает, idle = остановлена, "
-    "archived = в архиве) | проект | последняя активность | название | о чём "
-    "она | последняя реплика человека | kw = сколько слов запроса встречается "
-    "в её переписке.\n\n"
-    "Правила. Совпадение темы важнее свежести, но из нескольких сессий про одно "
-    "и то же бери ту, где эта работа шла последней. kw — подсказка, а не "
-    "ответ: общие слова встречаются везде. Если ни одна сессия не про эту "
-    "работу, ответь null: тогда запустится новая.\n\n"
-    "Ответь ОДНОЙ строкой JSON, без markdown:\n"
-    '{"session":"id или null","why":"по-русски, до 12 слов: почему эта"}\n\n')
+    "A person is starting work in one of their Claude Code sessions and chose "
+    "\"continue the matching one\": find the session where THIS work already "
+    "went on (the same task, product or project, finishing it or its next "
+    "step), so the request goes there.\n\n"
+    "Session line: id | state (live = running, idle = stopped, archived) | "
+    "project | last activity | title | what it is about | the person's last "
+    "message | kw = how many words of the request occur in its conversation."
+    "\n\n"
+    "Rules. The topic matters more than recency, but among several sessions "
+    "on the same thing take the one where this work went on last. kw is a "
+    "hint, not the answer: common words occur everywhere. If no session is "
+    "about this work, answer null: a new one starts.\n\n"
+    "Reply with ONE line of JSON, no markdown:\n"
+    '{"session":"id or null","why":"up to 12 words, in the request\'s '
+    'language: why this one"}\n\n')
 
 
 def _cont_terms(text):
@@ -5390,7 +5392,7 @@ def continue_pick(text):
             cut(r["title"], 60), cut(r["what"], 160), cut(r["said"], 110),
             r["kw"], len(terms))
         for r in rows)
-    prompt = (CONT_PROMPT + "СЕССИИ:\n" + listing + "\n\nЗАПРОС:\n"
+    prompt = (CONT_PROMPT + "SESSIONS:\n" + listing + "\n\nREQUEST:\n"
               + text[:4000])
     try:
         os.makedirs(SUM_DIR)
@@ -5817,7 +5819,7 @@ def act_bulk_restart(prefs):
     msg = "restarting: %d · the guardian relaunches 3 per minute" % len(hit)
     skipped = len(good) - len(hit)
     if skipped:
-        msg += " · %d не были запущены" % skipped
+        msg += " · %d were not running" % skipped
     return msg + _tail(bad)
 
 
@@ -5851,7 +5853,7 @@ def act_kill_empty(_=None):
                 r["sessions"][uuid]["state"] = "dead"
         G.save(G.REG_PATH, r)
     with_lock(edit)
-    return ("освобождено слотов: %d (%s)"
+    return ("slots freed: %d (%s)"
             % (len(victims), ", ".join(u[:8] for u, _p in victims)))
 
 
@@ -6027,8 +6029,8 @@ def act_retire_older(hours):
     if not hit:
         return "nothing in the queue older than %gh" % h
     head = ", ".join(u[:8] for u in hit[:6])
-    tail = " и ещё %d" % (len(hit) - 6) if len(hit) > 6 else ""
-    return "снято %d из очереди (старше %g ч): %s%s" % (len(hit), h, head, tail)
+    tail = " and %d more" % (len(hit) - 6) if len(hit) > 6 else ""
+    return "retired %d from the queue (older than %gh): %s%s" % (len(hit), h, head, tail)
 
 
 def act_up(pref):
@@ -6040,7 +6042,7 @@ def act_up(pref):
     """
     uuid = resolve(pref)
     if pid_for(uuid) is not None:
-        return "%s уже живая" % uuid[:8]
+        return "%s is already live" % uuid[:8]
 
     def edit():
         reg = G.load(G.REG_PATH, {})
@@ -6067,8 +6069,8 @@ def act_up(pref):
             reg["sessions"][uuid]["app_session"] = link
             G.save(G.REG_PATH, reg)
         with_lock(stamp)
-        return "%s поднята → %s" % (uuid[:8], link)
-    return "%s запущена, ссылка появится в течение минуты" % uuid[:8]
+        return "%s revived → %s" % (uuid[:8], link)
+    return "%s started, the link appears within a minute" % uuid[:8]
 
 
 if __name__ == "__main__":

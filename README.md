@@ -24,7 +24,8 @@ Not affiliated with Anthropic.
    mkdir -p ~/rc-work && cd ~/rc-work && claude
    ```
 
-   Answer "Yes, I trust this folder".
+   Claude Code asks whether you trust the folder: press the down arrow to
+   "Yes, I trust this folder", then Enter.
 
 2. Paste this into Claude Code:
 
@@ -35,6 +36,10 @@ Not affiliated with Anthropic.
 Claude checks the prerequisites, asks only what it must, installs the
 background services (launchd on macOS, systemd on Linux), starts them and
 prints the address to open.
+
+## Update
+
+Tell Claude Code: `Update Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Updating")`.
 
 ## What runs
 
@@ -62,7 +67,7 @@ services to uninstall (see INSTALL.md).
 
 ## Status
 
-v0.1. Some UI strings and many code comments are still in Russian.
+v0.1. Many code comments are still in Russian.
 
 ---
 
@@ -89,7 +94,8 @@ v0.1. Some UI strings and many code comments are still in Russian.
    mkdir -p ~/rc-work && cd ~/rc-work && claude
    ```
 
-   На вопрос о папке ответьте «Yes, I trust this folder».
+   Claude Code спросит, доверяете ли вы папке: стрелкой вниз выберите
+   «Yes, I trust this folder» и нажмите Enter.
 
 2. Вставьте в Claude Code:
 
@@ -99,6 +105,10 @@ v0.1. Some UI strings and many code comments are still in Russian.
 
 Claude проверит требования, задаст только нужные вопросы, установит фоновые
 службы (launchd на Mac, systemd на Linux), запустит их и покажет адрес.
+
+## Обновление
+
+Скажите Claude Code: `Update Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Updating")`.
 
 ## Безопасность
 

@@ -111,6 +111,24 @@ once (the phone must be signed in to the same Tailscale account). If the phone
 gets 403, add that host name to `RC_ALLOWED_HOSTS` in the panel unit's
 environment and restart the panel.
 
+## Updating (when the user asks to update Vibe Wars)
+
+```
+cd REPO && git pull --ff-only
+```
+
+Then re-run the step 4a or 4b command with the same settings as before (read
+them from the existing plist or unit: `--workdir`, `--port`, `--max-live`,
+plus `--with-bot` / `--with-daemon` if present) and restart the panel:
+
+- macOS: `cp ~/.vibe-wars/launchd/com.vibe-wars.*.plist ~/Library/LaunchAgents/`,
+  then for each plist `launchctl bootout gui/$(id -u) "$p"` and
+  `launchctl bootstrap gui/$(id -u) "$p"`.
+- Linux: `systemctl --user daemon-reload && systemctl --user restart vibe-wars-rc-panel.service`.
+
+The other services run on timers and pick up the new code by themselves.
+Run step 5 again and tell the user what changed (`git log --oneline -5`).
+
 ## 7. Report to the user
 
 Tell them, in short: the local URL, the phone URL (if set up), where the token

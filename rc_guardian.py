@@ -1889,9 +1889,9 @@ def reap_wedged(reg, state, dry=False):
             log(f"  {uuid[:8]} runs again without a restart")
             for k in ("wedge", "frozen", "tcc"):
                 state.get(k, {}).pop(uuid, None)
-            notify(f"🧊→✅ Сессия {name} ({uuid[:8]}) зависла на системном файле "
-                   f"({', '.join(os.path.basename(w) for w in woke) or 'неизвестно'}); "
-                   f"разморозил без перезапуска.")
+            notify(f"Session {name} ({uuid[:8]}) hung on a system file "
+                   f"({', '.join(os.path.basename(w) for w in woke) or 'unknown'}); "
+                   f"unfrozen without a restart.")
             continue
         started = proc_start(cpid)
         owed = turn_owed(uuid, after=(started + SETTLE_S) if started else None) is True
@@ -1911,10 +1911,10 @@ def reap_wedged(reg, state, dry=False):
                 rec["nudge_tries"] = 0
                 rec["nudge_tcc"] = tcc.get(uuid)
                 rec["nudge_kind"] = "freeze"
-        notify(f"🧊 Сессия зависла и перезапущена: {name} ({uuid[:8]}). Экран молчал "
-               f"{silent // 60} мин, процесс не отвечал. История сохранена"
-               + ("; оборванный шаг она продолжит сама." if owed else
-                  "; если писали в неё за это время — отправьте ещё раз."))
+        notify(f"Session hung and was restarted: {name} ({uuid[:8]}). The screen was silent "
+               f"{silent // 60} min, the process did not answer. History is kept"
+               + ("; it will finish the interrupted step itself." if owed else
+                  "; if you wrote to it meanwhile, send it again."))
     return list(hits)
 
 
@@ -2746,7 +2746,7 @@ def preflight(argv):
         drop = len(queue) - MAX_LIVE
         print(f"  ⛔ {len(queue)} sessions for {MAX_LIVE} slots: the newest {MAX_LIVE} "
               f"come back, {drop} stay hand-restorable in RC_LIVE.md only.")
-        print(f"     Clear them:  «Снять старьё» in the «В очереди» section of the panel")
+        print(f"     Clear them:  the Queue section of the panel")
     print("  ⚠ do not start new chats during the switch — an app-created chat "
           "takes a slot the queue is waiting for.")
     print()
@@ -2853,9 +2853,9 @@ def main():
         down = state.get("net_down_cycles", 0) + 1
         state["net_down_cycles"] = down
         if down == 4 and (len(live) + live_daemon_children()) > 0:
-            notify(f"⚠️ Сеть недоступна {down} мин. Через ~13 мин RC-демон убьёт все "
-                   f"живые сессии. Список сохранён (~/.claude/handoffs/RC_LIVE.md), "
-                   f"rc-guardian поднимет их автоматически, как только сеть вернётся.")
+            notify(f"Network down for {down} min. In ~13 min the RC daemon kills all "
+                   f"live sessions. The list is saved; rc-guardian brings them back "
+                   f"automatically once the network returns.")
         save(STATE_PATH, state)
         log(f"network down ({down} cycles) — snapshot only, {len(ws)} in working set")
         return
@@ -2960,9 +2960,9 @@ def main():
             for _u, _r in queue:
                 log(f"  queued {_u[:8]}  {_r.get('last_active', '')[:16]}  {_r.get('name', '')}")
         else:
-            notify(f"🔄 Claude account → {acct}. Переношу сессии в новый аккаунт: "
-                   f"{len(restored)} уже в апе, {max(0, len(queue) - len(restored))} в очереди "
-                   f"(по 3 в минуту). Список: ~/.claude/handoffs/RC_LIVE.md")
+            notify(f"Claude account → {acct}. Moving sessions to the new account: "
+                   f"{len(restored)} already up, {max(0, len(queue) - len(restored))} queued "
+                   f"(3 per minute).")
     elif force_all:
         log(f"manual --restore-all over {len(ws)} sessions")
         if not dry:
@@ -2984,12 +2984,12 @@ def main():
         if restored:
             body = "\n".join(
                 f"• {r[1]['name']} — https://claude.ai/code/{r[2]}" if r[2]
-                else f"• {r[1]['name']} — восстанавливается"
+                else f"• {r[1]['name']}: restoring"
                 for r in restored
             )
-            notify(f"♻️ Remote Control: сессии упали ({reason}).\n"
-                   f"Автоматически восстановил {len(restored)} из {victims}:\n{body}\n"
-                   f"Остальные догоню в следующих циклах. Полный список: ~/.claude/handoffs/RC_LIVE.md")
+            notify(f"Remote Control: sessions went down ({reason}).\n"
+                   f"Restored {len(restored)} of {victims} automatically:\n{body}\n"
+                   f"The rest follow in the next cycles.")
     else:
         # steady state: top up anything the previous cycles could not finish
         # A transcript written in the last 5 minutes has a process behind it,

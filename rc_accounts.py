@@ -617,8 +617,8 @@ def _fmt_ts(ts):
 
 
 def _kind_ru(kind):
-    return {"week": "недельный лимит", "seven_day": "недельный лимит",
-            "five_hour": "5-часовой лимит"}.get(kind, "лимит")
+    return {"week": "the weekly limit", "seven_day": "the weekly limit",
+            "five_hour": "the 5-hour limit"}.get(kind, "the limit")
 
 
 def blocked_reasons(st, cur, now=None):
@@ -698,17 +698,17 @@ def why_not(st, cur, now=None):
         r = led.get(email) or {}
         rs = reset_ts(r.get("week_resets"), now)
         if not a.get("rt_hash"):
-            lines.append("%s: вход не сохранён" % email)
+            lines.append("%s: sign-in not saved" % email)
         elif a.get("rt_exp") and a["rt_exp"] / 1000.0 < now:
-            lines.append("%s: сохранённый вход истёк" % email)
+            lines.append("%s: saved sign-in expired" % email)
         elif a.get("bad_at") and now - a["bad_at"] < BAD_SKIP_S:
-            lines.append("%s: вход не принят (%s)" % (email, (a.get("bad_why") or "")[:80]))
+            lines.append("%s: sign-in rejected (%s)" % (email, (a.get("bad_why") or "")[:80]))
         elif a.get("empty_until") and a["empty_until"] > now:
-            lines.append("%s: лимит до %s" % (email, _fmt_ts(a["empty_until"])))
+            lines.append("%s: limit until %s" % (email, _fmt_ts(a["empty_until"])))
         elif r.get("week") is not None and r["week"] > ROOM_MAX_WEEK and not (rs and rs <= now):
-            lines.append("%s: неделя %s%%, сброс %s" % (email, r["week"], _fmt_ts(rs)))
+            lines.append("%s: week %s%%, resets %s" % (email, r["week"], _fmt_ts(rs)))
         else:
-            lines.append("%s: можно" % email)
+            lines.append("%s: available" % email)
     return lines
 
 
@@ -750,11 +750,11 @@ def _signin_hint(st, cur, now):
         if best is None or wk < best[1]:
             best = (email, wk)
     url = hq_url()
-    where = ("HQ (%s) → кнопка A" % url) if url else "HQ → кнопка A"
+    where = ("HQ (%s) → button A" % url) if url else "HQ → button A"
     if best:
-        return ("Войди в %s (неделя %d%%): %s → у него SWITCH TO IT → ссылка → код"
+        return ("Sign in to %s (week %d%%): %s → its SWITCH TO IT → link → code"
                 % (best[0], best[1], where))
-    return "Войди в аккаунт с запасом: %s → SIGN IN → ссылка → код" % where
+    return "Sign in to an account with room left: %s → SIGN IN → link → code" % where
 
 
 def tick(log=print, notify=None, dry=False):
@@ -773,8 +773,8 @@ def tick(log=print, notify=None, dry=False):
     st = _state()
     if st.get("current") != cur:
         if st.get("alarm_n"):
-            notify("Claude на %s снова работает: аккаунт %s. Сессии переезжают на него, "
-                   "остановленные лимитом получат «продолжай»." % (machine_name(), cur))
+            notify("Claude on %s works again: account %s. Sessions move to it; the ones "
+                   "stopped by the limit get \"continue\"." % (machine_name(), cur))
         st["current"] = cur
         st["current_since"] = now
         for k in ("blocked_since", "alarm_at", "alarm_n", "block_kind", "block_resets"):
@@ -786,7 +786,7 @@ def tick(log=print, notify=None, dry=False):
     if not reasons:
         if st.get("blocked_since"):
             if st.get("alarm_n"):
-                notify("Claude на %s снова работает: лимит аккаунта %s восстановился."
+                notify("Claude on %s works again: the limit of account %s is back."
                        % (machine_name(), cur))
             log("accounts: %s is not blocked any more" % cur)
             for k in ("blocked_since", "alarm_at", "alarm_n", "block_kind", "block_resets"):
@@ -829,11 +829,11 @@ def tick(log=print, notify=None, dry=False):
             st = _state()
             if ok:
                 switched = True
-                notify("Аккаунт %s на %s исчерпал %s (сброс %s). Сам переключил на %s "
-                       "(неделя %s). Сессии переезжают по 3 в минуту, остановленные лимитом "
-                       "получат «продолжай»." % (
+                notify("Account %s on %s used up %s (resets %s). Switched to %s "
+                       "(week %s). Sessions move 3 per minute; the ones stopped by the limit "
+                       "get \"continue\"." % (
                            cur, machine_name(), _kind_ru(kind), _fmt_ts(resets), email,
-                           ("%s%%" % wk) if wk is not None else "без свежих цифр"))
+                           ("%s%%" % wk) if wk is not None else "no fresh numbers"))
                 st["alarm_n"] = 0
                 break
     if switched:
@@ -843,16 +843,16 @@ def tick(log=print, notify=None, dry=False):
     if not dry and now - (st.get("alarm_at") or 0) >= ALARM_EVERY_S:
         mins = int((now - st["blocked_since"]) / 60)
         others = why_not(st, cur, now)
-        txt = ("Claude на %s стоит: аккаунт %s исчерпал %s (сброс %s), сессии и сборки "
-               "не работают%s.\n" % (machine_name(), cur, _kind_ru(kind), _fmt_ts(resets),
-                                      (" уже %d мин" % mins) if mins >= 2 else ""))
+        txt = ("Claude on %s is stopped: account %s used up %s (resets %s), sessions "
+               "do not run%s.\n" % (machine_name(), cur, _kind_ru(kind), _fmt_ts(resets),
+                                      (" for %d min already" % mins) if mins >= 2 else ""))
         if not auto_on():
-            txt += "Автопереключение выключено.\n"
-        txt += ("Переключиться самому не на что:\n" + "\n".join("· " + l for l in others) + "\n"
-                if others else "Других аккаунтов я не знаю.\n")
-        txt += ("%s. После входа сессии переедут и продолжат сами.\n"
-                "Чтобы дальше переключалось без тебя: там же у каждого аккаунта SAVE SIGN-IN.\n"
-                "Пишу каждые 10 минут, пока не войдёшь." % _signin_hint(st, cur, now))
+            txt += "Auto-switch is off.\n"
+        txt += ("Nothing to switch to:\n" + "\n".join("· " + l for l in others) + "\n"
+                if others else "No other accounts are known.\n")
+        txt += ("%s. After the sign-in the sessions move and go on by themselves.\n"
+                "To switch without you next time: SAVE SIGN-IN for each account in the same place.\n"
+                "This repeats every 10 minutes until you sign in." % _signin_hint(st, cur, now))
         notify(txt)
         st["alarm_at"] = now
         st["alarm_n"] = (st.get("alarm_n") or 0) + 1
@@ -871,16 +871,16 @@ def _expiry_reminders(st, cur, now, notify, log):
             continue
         a["expiry_warned"] = today
         if email == cur:
-            how = ("HQ → A → SIGN IN с этим же адресом (сессии никуда не переезжают)")
+            how = ("HQ → A → SIGN IN with the same address (sessions stay where they are)")
         else:
-            how = ("HQ → A → у этого аккаунта SAVE SIGN-IN (%s останется на %s)"
+            how = ("HQ → A → SAVE SIGN-IN for this account (%s stays on %s)"
                    % (machine_name(), cur))
         if days <= 0:
-            line = "Сохранённый вход в %s на %s истёк." % (email, machine_name())
+            line = "The saved sign-in to %s on %s expired." % (email, machine_name())
         else:
-            line = ("Вход в %s на %s закончится через %d дн. (%s)." % (
+            line = ("The sign-in to %s on %s expires in %d days (%s)." % (
                 email, machine_name(), max(1, int(days + 0.5)), _fmt_ts(exp)))
-        notify(line + " Обнови его: " + how + ".")
+        notify(line + " Renew it: " + how + ".")
         log("accounts: expiry reminder for %s (%.1f d)" % (email, days))
 
 

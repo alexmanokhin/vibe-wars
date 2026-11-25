@@ -14,7 +14,7 @@ VIBE_HOME, so the user's ~/.vibe is never touched:
   <home>/logs/session/active/<id>.lock.json  {"process_id": <app-server pid>,
                       "session_id": <id>} written AT LAUNCH, before any prompt
 
-Checked 25.11 with vibe 3.1.0 on MISTRAL_VIBE_API_KEY_3:
+Checked 25.11 with vibe 3.1.0 on a Vibe plan key:
 - `--trust --auto-approve`: no trust question, no approval prompts.
 - Typing like Claude works as is: plain text + Enter 0.2 s later submits; a
   multiline bracketed paste works too; a message sent mid-turn becomes the

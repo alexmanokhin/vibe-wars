@@ -1639,7 +1639,7 @@ function tuiChip(t){
 let PEND=[], PEND_ID=0, TX_LAST=null;
 const INVIS_RE=new RegExp('['+[[0x200B,0x200F],[0x202A,0x202E],[0x2060,0x2064],[0x2066,0x2069]].map(function(r){
   return String.fromCharCode(r[0])+'-'+String.fromCharCode(r[1]); }).join('')+String.fromCharCode(0xFEFF)+String.fromCharCode(0xAD)+']','g');
-function pendNorm(t){ return String(t||'').replace(INVIS_RE,'').replace(/\s+/g,' ').trim(); }
+function pendNorm(t){ return String(t||'').replace(INVIS_RE,'').replace(/\\s+/g,' ').trim(); }
 /* Ожидающих реплик может быть несколько: занятой сессии пишут подряд, не
    дожидаясь ответа. Раньше здесь была ОДНА ячейка, и второе сообщение
    затирало пузырь первого — на экране оставалось только последнее.
@@ -1676,7 +1676,7 @@ function pendBack(id){
   const p=PEND.filter(function(x){ return x.id===id; })[0];
   if(!p) return;
   const ta=document.getElementById('drtext');
-  ta.value=(ta.value?ta.value.replace(/\s+$/,'')+String.fromCharCode(10):'')
+  ta.value=(ta.value?ta.value.replace(/\\s+$/,'')+String.fromCharCode(10):'')
            +(p.raw||p.text);
   taGrow(ta); ta.focus();
   pendForget(id);
@@ -1804,7 +1804,7 @@ function draftSelect(id, list, cur){
 // ---- просмотр файла ----
 let FILE_CUR=null;
 function fileUrl(p){ return '/file?path='+encodeURIComponent(p)+dq('&'); }
-function isImgPath(p){ return /\.(png|jpe?g|gif|webp|svg)$/.test(String(p||'').toLowerCase()); }
+function isImgPath(p){ return /\\.(png|jpe?g|gif|webp|svg)$/.test(String(p||'').toLowerCase()); }
 function fileDownload(){ if(FILE_CUR) window.open(fileUrl(FILE_CUR), '_blank'); }
 function closeFile(){
   FILE_CUR=null;
@@ -1823,7 +1823,7 @@ async function openFile(path){
     box.innerHTML='<img src="'+esc(fileUrl(path))+'" alt="">';
     return;
   }
-  if(/\.(pdf|html?)$/.test(low)){
+  if(/\\.(pdf|html?)$/.test(low)){
     // В iframe, а не в саму страницу: отчёт рисуется как задумано, но живёт
     // в своём origin и до панели не дотягивается.
     box.innerHTML='<iframe src="'+esc(fileUrl(path))+'"></iframe>';
@@ -1835,7 +1835,7 @@ async function openFile(path){
     if(!r.ok){ box.innerHTML='<pre>✗ '+esc(t)+'</pre>'; return; }
     // markdown рисуем разметкой — его открывают, чтобы прочитать отчёт,
     // а не посмотреть на решётки заголовков.
-    box.innerHTML = /\.(md|markdown)$/.test(low)
+    box.innerHTML = /\\.(md|markdown)$/.test(low)
       ? '<div class="msg"><div class="mtext">'+md(t)+'</div></div>'
       : '<pre>'+esc(t)+'</pre>';
   }catch(e){ box.innerHTML='<pre>✗ '+esc(e)+'</pre>'; }
@@ -1860,7 +1860,7 @@ async function menuPick(sel){
   if(v==='delete'){ await delSession(null, id); return; }
 }
 function tokShort(n){
-  if(n>=1000000) return (n/1000000).toFixed(1).replace(/\.0$/,'')+'M';
+  if(n>=1000000) return (n/1000000).toFixed(1).replace(/\\.0$/,'')+'M';
   if(n>=1000) return (n/1000).toFixed(1)+'k';
   return String(n);
 }
@@ -3269,7 +3269,7 @@ async function toggleMic(){
     const ta=document.getElementById('drtext');
     if(draft || !sent){
       // В черновике отправлять некуда — сессии ещё нет.
-      ta.value=(ta.value?ta.value.replace(/\s+$/,'')+' ':'')+text;
+      ta.value=(ta.value?ta.value.replace(/\\s+$/,'')+' ':'')+text;
       taGrow(ta); ta.focus();
       return;
     }
@@ -3840,7 +3840,7 @@ function pulseApply(j, ui){
           el.classList.toggle('hot', v!=null && v>=80);
           el.classList.toggle('warm', v!=null && v>=60 && v<80);
           const r=lim[el.dataset.k+'_resets']||'';
-          if(res) res.textContent=r.replace(/\s*\([^)]*\)\s*$/,'').replace(' at ',' ').slice(0,22);
+          if(res) res.textContent=r.replace(/\\s*\\([^)]*\\)\\s*$/,'').replace(' at ',' ').slice(0,22);
           el.title='resets '+(r||'?').slice(0,34);
         });
         const age=document.querySelector('.limage time');

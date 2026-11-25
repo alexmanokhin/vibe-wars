@@ -95,8 +95,12 @@ tail -n 20 ~/.vibe-wars/rc-guardian.log
 If the panel does not answer: macOS `launchctl print gui/$(id -u)/com.vibe-wars.rc-panel | head -30`
 and `ls ~/.vibe-wars/logs`; Linux `journalctl --user -u vibe-wars-rc-panel -n 50`.
 
-Show the user the URL printed by `--url` and tell them to open it once in the
-browser on this computer; the token is then remembered by the browser.
+Print the full URL from `--url` in your reply, as a link the user can click:
+it carries their own access token for their own computer, and showing it to
+them is the point of this step (do not make them run a command for it). Tell
+them to open it once in the browser on this computer; the browser then
+remembers the token. Then tell them: in the panel, the HQ link (or `/play`)
+opens the game view; RECRUIT starts a new Claude session.
 
 ## 6. Phone access through Tailscale (optional)
 

@@ -166,6 +166,30 @@ RESTORE_TIMEOUT = 45    # shared deadline for the whole batch to surface app lin
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
 
+def boot_time():
+    """When the machine last booted (epoch seconds, rounded), 0 if unknown."""
+    try:
+        if IS_LINUX:
+            with open("/proc/stat") as fh:
+                for line in fh:
+                    if line.startswith("btime "):
+                        return int(line.split()[1])
+            return 0
+        out = subprocess.run(["sysctl", "-n", "kern.boottime"], capture_output=True,
+                             text=True, timeout=5).stdout
+        m = re.search(r"sec\s*=\s*(\d+)", out)
+        return int(m.group(1)) if m else 0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0
+
+
+# A reboot (or shutdown) closes every session's card in the app, and the app
+# then reports it archived: that is not the user's archive. Sessions that were
+# live before a reboot are restored, and their archive edge within this window
+# after the boot is ignored.
+REBOOT_KEEP_S = 30 * 60
+
+
 def now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -993,6 +1017,9 @@ def apply_archive(reg, statuses):
                     and time.time() - float(shed.get(uuid) or 0) < SHED_ARCHIVE_S):
                 log(f"archived in the app right after a load-guard shed -> "
                     f"kept {uuid[:8]}, not retired")
+            elif (archived and was is not True and not rec.get("retired")
+                    and time.time() - float(rec.get("reboot_keep") or 0) < REBOOT_KEEP_S):
+                log(f"card closed by the reboot -> kept {uuid[:8]}, not retired")
             elif archived and was is not True and not rec.get("retired"):
                 rec["retired"] = True
                 rec["retired_by"] = ARCHIVE_BY
@@ -2868,6 +2895,21 @@ def main():
     chunk = read_new_rclog(state)
 
     n = census(reg)
+    bt = boot_time()
+    if bt and state.get("boot") and abs(bt - state["boot"]) > 5:
+        was_live = state.get("live_uuids") or []
+        back = 0
+        for _u in was_live:
+            _r = reg.get("sessions", {}).get(_u)
+            if _r and _r.get("kind") == "rc" and not _r.get("retired"):
+                if not dry:
+                    _r["state"] = "dead"
+                    _r["died_at"] = now()
+                    _r["reboot_keep"] = time.time()
+                back += 1
+        log(f"machine rebooted: {back} session(s) were live, queued to come back")
+    if bt:
+        state["boot"] = bt
     if not dry:
         # Do this before live_uuids(): a husk holds a MAX_LIVE slot forever and
         # would block the whole restore queue behind it.
@@ -3001,7 +3043,8 @@ def main():
         # waiting out the 5 minutes only leaves it dead (551f1f1d, 09-28).
         pending = [(u, r) for u, r in ws
                    if r.get("state") == "dead" and u not in live
-                   and (r.get("last_active_ts", 0) < warm or r.get("wedge_kill"))]
+                   and (r.get("last_active_ts", 0) < warm or r.get("wedge_kill")
+                        or time.time() - float(r.get("reboot_keep") or 0) < REBOOT_KEEP_S)]
         # A restore that died within 5 minutes did not "get closed by the user" —
         # it failed to come up. Re-queue those; leave older ones alone.
         for uuid, rec in ws:
@@ -3021,6 +3064,7 @@ def main():
                 restored = restore_batch(reg, pending)
 
     snapshot(reg, working_set(reg, live), live_uuids())
+    state["live_uuids"] = sorted(live_uuids())
     state.update({"daemon_pid": dpid, "live_count": cur_live,
                   "app_count": live_daemon_children(), "account": acct,
                   "last_run": now()})

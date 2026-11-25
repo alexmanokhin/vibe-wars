@@ -1107,7 +1107,7 @@ function hqStatus(t){
 // Список процессов под баром Load: кто ест память и кнопка убить. Пока открыт,
 // обновляется сам, чтобы после kill сразу было видно, что освободилось.
 // ⛔ В этом блоке ни одного бэкслеша: JS лежит в питоновской строке, и каждый
-// уровень съедает по слою экранирования — регексп /['"\]/ уже ронял всю страницу.
+// уровень съедает по слою экранирования (регексп с бэкслешем уже ронял всю страницу).
 let PROCS_T=null;
 const NL=String.fromCharCode(10);
 function pesc(t){ return String(t==null?'':t).replace(/[&<>"']/g, function(c){
@@ -4737,12 +4737,11 @@ def page(dev_id="", sort_by="projects", light=False, only=None):
                  if not (light and only) or r["short"] == only)
     rows_json = json.dumps(heads, ensure_ascii=False).replace("</", "<\\/")
 
-    return ("""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+    return ("""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Mac mini sessions</title><link rel="icon" href="data:,"><link rel="stylesheet" href="%s"></head><body><div id="toploader"><i></i></div>
+<title>Vibe Wars</title><link rel="icon" href="data:,"><link rel="stylesheet" href="%s"></head><body><div id="toploader"><i></i></div>
 <div id="shell"><aside id="side">
-<div class="devbar"><select id="devsel" onchange="switchDev(this.value)">%s</select>
-<button onclick="devAdd()" title="Add another device">+</button></div>
+<div class="devbar"><select id="devsel" onchange="switchDev(this.value)">%s</select></div>
 <div id="flash"></div>
 %s
 %s
@@ -5171,15 +5170,15 @@ def _req_token(headers):
 
 
 LOGIN_PAGE = """<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Vibe Wars: sign in</title>
 <style>body{font:16px system-ui,sans-serif;background:#111;color:#eee;display:flex;min-height:100vh;
 align-items:center;justify-content:center;margin:0;padding:16px;box-sizing:border-box}
 form{max-width:420px;width:100%%}input{width:100%%;box-sizing:border-box;padding:12px;font-size:16px;
 margin:12px 0;border-radius:8px;border:1px solid #444;background:#222;color:#eee}
 button{padding:12px 20px;font-size:16px;border-radius:8px;border:0;background:#4a7cff;color:#fff}
 p{color:#aaa;line-height:1.4}</style></head><body><form method="post" action="/login">
-<h2>Session dashboard</h2><p>Paste the access token. Get it on the computer with
-<code>python3 rc_panel.py --url</code>.</p><p style="color:#f77">%s</p>
+<h2>Vibe Wars</h2><p>Paste the access token. It is in <code>~/.vibe-wars/panel-token</code>
+on the computer, or ask Claude Code there for your Vibe Wars link.</p><p style="color:#f77">%s</p>
 <input type="password" name="token" autocomplete="current-password" autofocus>
 <input type="hidden" name="next" value="%s"><button type="submit">Open</button></form></body></html>"""
 
@@ -5801,7 +5800,7 @@ def lite_state(snap):
 
 def embed_page(doc):
     """The classic page as the chat pane of HQ: no session column, game skin."""
-    return doc.replace('<html lang="ru">', '<html lang="ru" class="embed game">', 1)
+    return doc.replace('<html lang="en">', '<html lang="en" class="embed game">', 1)
 
 
 def main():

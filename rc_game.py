@@ -1352,7 +1352,7 @@ def api(since=0, fleet=None, snap=None):
     # Claude models only where Claude Code is installed (a Codex- or Vibe-only
     # computer has none), then the other subscriptions that are set up
     out["models"] = ([["", "CLI default"]] + [list(x) for x in C.MODEL_CHOICES]
-                     if os.path.exists(G.CLAUDE) else [])
+                     if os.path.exists(G.CLAUDE) and not CFG.DEFAULT_PROVIDER else [])
     # other models behind the same claude (rc_providers), only those with a key
     for p in ((snap.get("meta") or {}).get("providers") or []):
         if p["id"] == "vibe":

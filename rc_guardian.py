@@ -1123,6 +1123,8 @@ def sync_archive(reg, state, force=False):
     Fails open: no token, 401, a network error = the last known flags stay,
     the pass goes on, and the error is logged once, not every 5 min.
     """
+    if CFG.DEFAULT_PROVIDER:
+        return      # no Claude subscription here: no app cards to sync
     if not force and time.time() - state.get("archive_try", 0) < ARCHIVE_POLL_S:
         return
     # a failed attempt waits the full interval too: a dead endpoint must not

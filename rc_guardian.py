@@ -2838,8 +2838,22 @@ def main():
     if edit_registry(argv):
         return
     if "--stop-sessions" in argv:
-        # uninstall: stop every session the panel or the guardian started
-        print(f"stopped {kill_restored()} session(s)")
+        # uninstall: stop the sessions the panel or the guardian started, and
+        # only those (a --resume session the user started by hand is not ours)
+        known = set((load(REG_PATH, {}).get("sessions") or {}).keys())
+        pids = []
+        for pid, args in ps_lines():
+            if "--remote-control" not in args:
+                continue
+            m = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+            if (m and m.group(1) in known) or new_session_uuid(args):
+                pids.append(int(pid))
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        print(f"stopped {len(pids)} session(s)")
         return
     if "--status" not in argv and not take_lock():
         log("another pass is still running — skipping this cycle")

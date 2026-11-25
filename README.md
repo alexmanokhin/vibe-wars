@@ -41,6 +41,11 @@ prints the address to open.
 
 Tell Claude Code: `Update Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Updating")`.
 
+## Phone access (optional)
+
+Install Tailscale on the computer and the phone, sign in to the same account,
+then tell Claude Code: `Set up phone access for Vibe Wars (follow ~/vibe-wars/INSTALL.md, step 6)`.
+
 ## Telegram (optional)
 
 Alerts and session control from Telegram. Tell Claude Code:
@@ -116,6 +121,11 @@ Claude проверит требования, задаст только нужн
 ## Обновление
 
 Скажите Claude Code: `Update Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Updating")`.
+
+## Доступ с телефона (по желанию)
+
+Установите Tailscale на компьютер и телефон, войдите в один аккаунт, затем
+скажите Claude Code: `Set up phone access for Vibe Wars (follow ~/vibe-wars/INSTALL.md, step 6)`.
 
 ## Telegram (по желанию)
 

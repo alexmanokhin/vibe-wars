@@ -99,10 +99,19 @@ opens the game view; RECRUIT starts a new Claude session.
 
 ## 6. Phone access through Tailscale (optional)
 
+On Linux, `tailscale serve` as a normal user needs one-time permission. If it
+says access denied (or before running it), ASK the user to type
+`! sudo tailscale set --operator=$USER` in this prompt, then continue.
+
 ```
 tailscale serve --bg PORT
 tailscale serve status
 ```
+
+If it prints "Serve is not enabled on your tailnet" with a link: give the user
+the link and tell them to leave "HTTPS certificates" checked and UNCHECK
+"Tailscale Funnel" (checked by default; Funnel would open things to the
+internet), then press the button. Run the command again after they say done.
 
 `tailscale serve status` shows `https://<machine>.<tailnet>.ts.net`. Tell the
 user to open `https://<machine>.<tailnet>.ts.net/?token=<token>` on the phone

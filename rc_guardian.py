@@ -969,6 +969,8 @@ def refresh_links(reg, statuses):
     import glob
     for f in glob.glob("/tmp/rc-new-*.uuid"):
         try:
+            if os.stat(f).st_uid != os.getuid():   # /tmp is shared
+                continue
             with open(f) as fh:
                 uuid = fh.read().strip()
         except OSError:

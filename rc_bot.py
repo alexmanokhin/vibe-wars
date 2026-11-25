@@ -364,6 +364,8 @@ def follow_link(chat, got):
         import glob
         for f in glob.glob("/tmp/rc-new-*.uuid"):
             try:
+                if os.stat(f).st_uid != os.getuid():   # /tmp is shared
+                    continue
                 with open(f) as fh:
                     if not fh.read().strip().startswith(who):
                         continue

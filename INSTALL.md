@@ -117,8 +117,10 @@ model list of RECRUIT once set up. Only subscriptions, no per-token API keys.
   terminal and sign in with ChatGPT. Nothing to configure in Vibe Wars.
 - **Mistral Vibe** (Vibe plan, runs DeepSeek V4.1 Flash): needs the Vibe CLI
   (`vibe --version`; install: `curl -LsSf https://mistral.ai/vibe/install.sh | bash`)
-  and a Vibe key: ASK the user to create one at
-  https://chat.mistral.ai/code/extensions?focus=key and paste it. Check it:
+  and a Vibe key. If Vibe is already set up (`vibe --setup`), the key is
+  `MISTRAL_API_KEY` in `~/.vibe/.env`: use it, do not ask. Otherwise ASK the
+  user to create one at https://chat.mistral.ai/code/extensions?focus=key and
+  paste it. Check it:
   `curl -s https://api.mistral.ai/v1/billing/budget -H "Authorization: Bearer <key>"`
   must show `vibe_budget`. Write `MISTRAL_VIBE_API_KEY=<key>` into
   `~/.vibe-wars/providers/keys.env` (folder mode 700, file mode 600).

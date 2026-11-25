@@ -310,3 +310,12 @@ def title(sdir):
         return (json.load(open(os.path.join(sdir, "meta.json"))).get("title") or "").strip()
     except (OSError, ValueError):
         return ""
+
+
+def session_model(sdir):
+    """The model alias (see MODELS) a session runs, from its meta.json."""
+    try:
+        with open(os.path.join(sdir, "meta.json")) as fh:
+            return ((json.load(fh).get("config") or {}).get("active_model") or "")
+    except (OSError, ValueError):
+        return ""

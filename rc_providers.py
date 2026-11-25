@@ -74,7 +74,7 @@ def vibe_key():
     return ""
 
 
-def vibe_home():
+def vibe_home(model=None):
     """VIBE_HOME of panel sessions: their own key and config, never ~/.vibe.
     Rewritten before every launch, so a new key takes effect on the next one."""
     import rc_vibe
@@ -82,7 +82,7 @@ def vibe_home():
     k = vibe_key()
     if not k:
         raise ValueError("no Mistral Vibe key: put MISTRAL_VIBE_API_KEY=... in %s" % KEYS)
-    rc_vibe.prepare_home(home, k)
+    rc_vibe.prepare_home(home, k, model or rc_vibe.DEFAULT_MODEL)
     return home
 
 

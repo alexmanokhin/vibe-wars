@@ -1428,6 +1428,9 @@ def launch_opts(uuid, rec, digests=None):
     Every assistant record carries message.model and effort; the digest keeps
     the latest of both per session.
     """
+    if rec.get("provider") in ("codex", "vibe"):
+        # their own CLI: the model and effort chosen in the panel, else its default
+        return rec.get("model"), rec.get("effort"), rec["provider"]
     if rec.get("provider"):
         # the provider's env names the model; Claude ids and efforts do not apply
         return None, None, rec["provider"]
@@ -1456,20 +1459,22 @@ def provider_env(provider):
     return rc_providers.env_file(provider)
 
 
-def codex_cmd(resume_id=None):
+def codex_cmd(resume_id=None, model=None, effort=None):
     import rc_codex
-    return rc_codex.launch_cmd(resume_id=resume_id)
+    return rc_codex.launch_cmd(model=model, effort=effort, resume_id=resume_id)
 
 
-def vibe_cmd(resume_id=None):
+def vibe_cmd(resume_id=None, model=None):
     import rc_vibe
     import rc_providers
-    return rc_vibe.launch_cmd(resume_id=resume_id, home=rc_providers.vibe_home())
+    return rc_vibe.launch_cmd(resume_id=resume_id, home=rc_providers.vibe_home(model))
 
 
-def other_cmd(provider, resume_id=None):
+def other_cmd(provider, resume_id=None, model=None, effort=None):
     """The command of a session that runs its own CLI (Codex, Mistral Vibe)."""
-    return vibe_cmd(resume_id) if provider == "vibe" else codex_cmd(resume_id)
+    if provider == "vibe":
+        return vibe_cmd(resume_id, model)
+    return codex_cmd(resume_id, model, effort)
 
 
 def provider_uuids():
@@ -1515,7 +1520,7 @@ def launch(uuid, name, model=None, effort=None, provider=None):
     with open(sh_path, "w") as fh:
         fh.write(wrapper_text(
             fifo, logf,
-            other_cmd(provider, uuid) if provider in ("codex", "vibe") else
+            other_cmd(provider, uuid, model, effort) if provider in ("codex", "vibe") else
             f"{shlex.quote(claude_exec())} --resume {shlex.quote(uuid)}{opts} "
             f"--remote-control {shlex.quote(name)}",
             # codex and vibe resume open the thread with no dialog to answer

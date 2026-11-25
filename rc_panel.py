@@ -4252,8 +4252,24 @@ def row_head_html(r, devs=None, cur=None):
     # Модель, эффорт и ссылку прячем под «ещё»: они нужны раз в день, а место
     # в шапке занимали постоянно. Наверху остаётся только то, чем пользуются.
     dg = r.get("digest") or {}
-    if r.get("provider"):
-        # another model (Codex, Mistral Vibe, a plan key): Claude models and
+    if r.get("provider") in ("codex", "vibe"):
+        # their own CLI: its models (and Codex's efforts), applied on Restart
+        # through `resume`, which keeps the thread
+        if r["provider"] == "codex":
+            import rc_codex
+            mch = [("", "Codex default")] + list(rc_codex.models())
+            ech = [("", "default effort")] + [(e, e) for e in rc_codex.EFFORT_CHOICES]
+        else:
+            import rc_vibe
+            mch = [("", "Vibe default")] + [(a, m["display"]) for a, m in rc_vibe.MODELS.items()]
+            ech = None
+        opts = [opt_select(r["short"], "model", r.get("model"), mch,
+                           "default", r.get("prov_model") or "")]
+        if ech:
+            opts.append(opt_select(r["short"], "effort", r.get("effort"), ech,
+                                   "default effort", ""))
+    elif r.get("provider"):
+        # another model (a plan key such as MiniMax): Claude models and
         # efforts do not apply to it, so the selects would only mislead
         pl = {"codex": "Codex", "vibe": "Mistral Vibe", "minimax": "MiniMax"}.get(r["provider"], r["provider"])
         opts = ['<select class="rowopt" disabled title="runs on %s"><option>%s</option></select>'

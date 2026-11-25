@@ -481,6 +481,7 @@ def snapshot():
             "pid": _pid,
             "link": r.get("app_session") or "",
             "provider": r.get("provider") or "",
+            "prov_model": _prov_model(r),
             "busy_age": age,
             # Статус с экрана TUI: он говорит и там, где транскрипт молчит.
             "tui": _tui,
@@ -516,7 +517,8 @@ def snapshot():
         providers = []
     try:
         import rc_codex
-        if rc_codex.codex_bin():
+        # installed AND signed in (ChatGPT): a bare binary only fails at launch
+        if rc_codex.codex_bin() and os.path.exists(os.path.join(rc_codex.CODEX_HOME, "auth.json")):
             providers.append({"id": "codex", "label": "Codex", "model": "ChatGPT login"})
     except Exception:
         pass
@@ -2176,6 +2178,25 @@ def _find_paths(text, cwd, cache):
         if take(m.group(1)):
             break
     return out
+
+
+def _prov_model(rec):
+    """What a Codex or Mistral Vibe session runs now, read from its thread."""
+    path = rec.get("rollout") or ""
+    if not path:
+        return ""
+    try:
+        if rec.get("provider") == "codex":
+            import rc_codex
+            m, e = rc_codex.rollout_model(path)
+            return m + ((" · " + e) if m and e else "")
+        if rec.get("provider") == "vibe":
+            import rc_vibe
+            a = rc_vibe.session_model(path)
+            return (rc_vibe.MODELS.get(a) or {}).get("display", a)
+    except Exception:
+        return ""
+    return ""
 
 
 _CODEX_MAP = {"mt": None, "map": {}}
@@ -4222,12 +4243,28 @@ def _set_opt(target, field, allowed):
             "use Restart to apply now%s" % (head, n, len(good), _tail(bad)))
 
 
+def _other_models():
+    """Model ids of Codex (its models cache) and Mistral Vibe (aliases)."""
+    out = []
+    try:
+        import rc_codex
+        out += [m for m, _ in rc_codex.models()]
+    except Exception:
+        pass
+    try:
+        import rc_vibe
+        out += list(rc_vibe.MODELS)
+    except Exception:
+        pass
+    return tuple(out)
+
+
 def act_set_model(target):
-    return _set_opt(target, "model", MODELS)
+    return _set_opt(target, "model", MODELS + _other_models())
 
 
 def act_set_effort(target):
-    return _set_opt(target, "effort", EFFORTS)
+    return _set_opt(target, "effort", EFFORTS + ("ultra",))
 
 
 def act_bulk_retire(prefs):

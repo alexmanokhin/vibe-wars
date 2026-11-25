@@ -94,7 +94,7 @@ def launch_cmd(model=None, effort=None, resume_id=None, rows=ROWS, cols=COLS):
              # the user config's notify hook launches the Computer Use client
              # after every turn; a panel session has no use for it
              "-c", "notify=[]",
-             "-c", "model_reasoning_effort=%s" % (effort if effort in EFFORTS else "high")]
+             "-c", "model_reasoning_effort=%s" % (effort if effort in EFFORT_CHOICES else "high")]
     if model:
         argv += ["-m", str(model)]
     inner = "stty rows %d cols %d; exec %s" % (rows, cols, " ".join(shlex.quote(a) for a in argv))
@@ -319,3 +319,33 @@ if __name__ == "__main__":
         print("busy(rollout):", turn_open(p), "limits:", limits(p), "title:", title(rollout_id(p)))
     else:
         print(launch_cmd())
+
+
+def models():
+    """[(slug, display name)] the user's Codex lists (its own models cache)."""
+    try:
+        with open(os.path.join(CODEX_HOME, "models_cache.json")) as fh:
+            d = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    return [(m.get("slug"), m.get("display_name") or m.get("slug"))
+            for m in (d.get("models") or []) if isinstance(m, dict)
+            and m.get("slug") and m.get("visibility") == "list"]
+
+
+EFFORT_CHOICES = ("low", "medium", "high", "xhigh", "max", "ultra")
+
+
+def rollout_model(path):
+    """(model, effort) of the thread's latest turn, from its turn_context."""
+    model = effort = ""
+    for line in _tail(path, 262144).decode("utf-8", "ignore").splitlines():
+        if '"turn_context"' not in line:
+            continue
+        try:
+            p = (json.loads(line) or {}).get("payload") or {}
+        except ValueError:
+            continue
+        model = p.get("model") or model
+        effort = p.get("effort") or p.get("reasoning_effort") or effort
+    return model, effort

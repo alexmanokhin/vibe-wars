@@ -39,13 +39,8 @@ Use these defaults unless the user asks otherwise; do not ask about them.
   `ss -ltn 'sport = :8788'`) shows a listener, use the next free port from 8789.
 - Live session cap: 8 GB RAM -> 6, 16 GB -> 12, 32 GB+ -> 20.
 
-ASK one question only if the user mentioned Telegram: the bot token and their
-numeric chat id. Write them to `~/.vibe-wars/telegram.env` (mode 600):
-
-```
-TELEGRAM_BOT_TOKEN=...
-RC_BOT_CHAT=...
-```
+If the user mentioned Telegram, install everything else first and then do the
+"Telegram" section below.
 
 ## 3. Prepare the work folder
 
@@ -114,6 +109,44 @@ user to open `https://<machine>.<tailnet>.ts.net/?token=<token>` on the phone
 once (the phone must be signed in to the same Tailscale account). If the phone
 gets 403, add that host name to `RC_ALLOWED_HOSTS` in the panel unit's
 environment and restart the panel.
+
+## Telegram (optional: when the user asks for it)
+
+The bot sends alerts and lets the user check and control sessions from
+Telegram. It needs a bot token and the user's chat id; the user only gives the
+token, you find the chat id.
+
+1. If the user has no token yet, tell them: in Telegram open @BotFather, send
+   `/newbot`, pick a name and a username ending in `bot`, and paste the token
+   it replies with here. Wait for the token.
+2. Check it: `curl -s https://api.telegram.org/bot<TOKEN>/getMe` must show
+   `"ok":true`. Note `result.username`.
+3. Tell the user: open `https://t.me/<username>`, press Start, and say when
+   done. Then read the chat id:
+
+   ```
+   curl -s https://api.telegram.org/bot<TOKEN>/getUpdates | python3 -c 'import json,sys; r=[u["message"]["chat"] for u in json.load(sys.stdin)["result"] if "message" in u and u["message"]["chat"]["type"]=="private"]; print(r[-1]["id"] if r else "none")'
+   ```
+
+   `none` means no message arrived yet: ask them to send the bot any text and
+   run it again. (Do this before the bot service runs: once it runs, it takes
+   the updates itself.)
+4. Write `~/.vibe-wars/telegram.env` with mode 600:
+
+   ```
+   TELEGRAM_BOT_TOKEN=<token>
+   RC_BOT_CHAT=<chat id>
+   ```
+
+5. Re-run the step 4a or 4b command with the same settings as before plus
+   `--with-bot` (read the settings from the existing plist or unit, as in
+   "Updating"), then start the bot:
+   - macOS: `cp ~/.vibe-wars/launchd/com.vibe-wars.rc-bot.plist ~/Library/LaunchAgents/`
+     and `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.vibe-wars.rc-bot.plist`.
+   - Linux: `cp ~/.vibe-wars/systemd/vibe-wars-rc-bot.service ~/.config/systemd/user/`,
+     `systemctl --user daemon-reload`, `systemctl --user enable --now vibe-wars-rc-bot.service`.
+6. Tell the user to send `/status` to the bot: it answers within a few
+   seconds. `/help` lists the commands.
 
 ## Updating (when the user asks to update Vibe Wars)
 

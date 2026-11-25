@@ -14,7 +14,7 @@ Not affiliated with Anthropic.
 - Python 3.9+ (on a Mac: the Command Line Tools, `xcode-select --install`) and git.
 - Tailscale installed and signed in on the computer and on the phone (same account),
   only if you want to open the dashboard from the phone.
-- Optional: a Telegram bot token, for alerts and the control bot.
+- Optional: Telegram, for alerts and the control bot (see below).
 
 ## Install
 
@@ -40,6 +40,13 @@ prints the address to open.
 ## Update
 
 Tell Claude Code: `Update Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Updating")`.
+
+## Telegram (optional)
+
+Alerts and session control from Telegram. Tell Claude Code:
+`Connect a Telegram bot to Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Telegram")`.
+It walks you through it: create a bot with @BotFather, paste its token, press
+Start in the bot. Then `/status` in the bot shows your sessions.
 
 ## What runs
 
@@ -84,7 +91,7 @@ v0.1. Many code comments are still in Russian.
 - Claude Code, вход с платной подпиской Claude (Pro или Max).
 - Python 3.9+ (на Mac: Command Line Tools, `xcode-select --install`) и git.
 - Tailscale на компьютере и на телефоне под одним аккаунтом, если нужен доступ с телефона.
-- По желанию: токен Telegram-бота для алертов и управления.
+- По желанию: Telegram для алертов и управления (см. ниже).
 
 ## Установка
 
@@ -109,6 +116,13 @@ Claude проверит требования, задаст только нужн
 ## Обновление
 
 Скажите Claude Code: `Update Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Updating")`.
+
+## Telegram (по желанию)
+
+Алерты и управление сессиями из Telegram. Скажите Claude Code:
+`Connect a Telegram bot to Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Telegram")`.
+Он проведёт по шагам: создать бота в @BotFather, вставить его токен, нажать
+Start в боте. После этого `/status` в боте показывает ваши сессии.
 
 ## Безопасность
 

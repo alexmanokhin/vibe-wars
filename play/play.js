@@ -1605,7 +1605,7 @@ window.addEventListener('message', e => {
   else if (d.rc === 'fail') { SFX.play('sad'); pulseCard(d.sid, 'bump'); }
   else if (d.rc === 'rec') SFX.play(d.on ? 'comm-open' : 'comm-close');
   else if (d.rc === 'voice') SFX.play(d.ok ? 'heard' : 'sad');
-  else if (d.rc === 'net') { const cm = $('#comm'); cm.className = 'comm ' + (d.state || 'ok'); cm.title = d.state === 'ok' ? 'link to the mini: good' : d.state === 'weak' ? 'link to the mini: weak, sends are confirmed and retried' : 'link to the mini: down, messages wait in the outbox'; }
+  else if (d.rc === 'net') { const cm = $('#comm'); cm.className = 'comm ' + (d.state || 'ok'); cm.title = d.state === 'ok' ? 'link to the computer: good' : d.state === 'weak' ? 'link to the computer: weak, sends are confirmed and retried' : 'link to the computer: down, messages wait in the outbox'; }
   else if (d.rc === 'flash') { if (String(d.t || '').charAt(0) === '✗') SFX.play('error'); }
   else if (d.rc === 'esc') goHQ();
   else if (d.rc === 'nav') nextAgent(d.dir || 1);
@@ -2142,7 +2142,7 @@ async function bvSend(blob) {
   BV.busy = false;
   if (!j) {
     BV.blob = blob; bvPaint('retry'); SFX.play('sad');
-    toast({ i: 'warning-box', t: 'Not transcribed', x: 'No answer from the mini. The recording is kept: press RETRY.', cls: 'bad', ms: 9000 });
+    toast({ i: 'warning-box', t: 'Not transcribed', x: 'No answer from the computer. The recording is kept: press RETRY.', cls: 'bad', ms: 9000 });
     return;
   }
   bvPaint('');
@@ -2209,7 +2209,7 @@ function seqDraw() {
     : cont && st === 'online' ? ['no match: new agent', modelLabel(L.model)]
     : cont ? ['continue the match'] : [modelLabel(L.model), L.effort || 'default effort']).map(c => '<span>' + esc(c) + '</span>').join('');
   $('#bay-note').textContent = st === 'online' ? (pk ? (pk.why ? 'Why this one: ' + pk.why : 'Delivered.') : cont ? (L.msg || 'On the board now.') : 'On the board now.')
-    : st === 'failed' ? (L.msg || 'no answer from the mini')
+    : st === 'failed' ? (L.msg || 'no answer from the computer')
     : cont ? 'The mini reads every session, archived ones too, and sends the order to the one doing this work. Nothing fits = a new agent.'
     : 'It flies on its own: open other agents meanwhile, it lands on the board and pings you.';
   const hb = $('#hangar .harrive b'); if (hb) hb.textContent = pk ? 'ORDER DELIVERED' : 'AGENT ONLINE';
@@ -2325,7 +2325,7 @@ async function launchRun(L) {
     } catch (e) {}
     await sleepMs(1500);
   }
-  if (!finished && L.state === 'flying') finish({ ok: false, msg: 'no answer from the mini' });
+  if (!finished && L.state === 'flying') finish({ ok: false, msg: 'no answer from the computer' });
 }
 const LANDED = {};
 function launchDone(L, j) {
@@ -2811,7 +2811,7 @@ const CINE = {
     if (L.state === 'online') return this.arrive(L);
     if (L.state === 'failed') {
       this.mode = 'fail'; this.ft0 = performance.now();
-      $('#cine-why').textContent = L.msg || 'no answer from the mini';
+      $('#cine-why').textContent = L.msg || 'no answer from the computer';
       $('#cine-fail').className = 'on'; $('#cine-hud').className = 'on bad';
       $('#cine-skip').textContent = 'Esc: close';
       SFX.play('error'); SFX.play('sad'); SCORE.fail();

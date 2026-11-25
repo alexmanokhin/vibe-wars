@@ -204,6 +204,8 @@ kbd{font-family:var(--pix);font-size:9px;background:var(--panel3);border:1px sol
 #st-compact.warm .cn{color:var(--gold)}
 #st-compact.hot .cn{color:#fff}
 @media(max-width:860px){#st-compact .cw{display:none}#st-compact{padding:0 7px;gap:4px}}
+/* phone: NEXT lives in the bottom bar, so the header keeps room for the name */
+@media(max-width:560px){#stagebar{gap:6px;padding:8px}#st-next,#comm{display:none}.st-acts{gap:4px}}
 #st-sub .ctxv{display:inline-flex;align-items:center;gap:5px;color:var(--ink2);flex:0 0 auto}
 #st-sub>span:first-of-type{flex:0 1 auto;min-width:64px}
 #st-sub .ctxv i{display:inline-block;width:34px;height:6px;background:#1a1640;border:1px solid #3b3290;position:relative}

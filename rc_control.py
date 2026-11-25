@@ -5065,7 +5065,7 @@ def transcribe(blob, name="voice.webm"):
     use_cpp = (not os.path.exists(WHISPER_BIN) and os.path.exists(WHISPER_CPP_BIN)
                and os.path.exists(WHISPER_CPP_MODEL))
     if not use_cpp and not os.path.exists(WHISPER_BIN):
-        raise ValueError("whisper is not installed on this device")
+        raise ValueError("voice needs whisper and ffmpeg on this computer (ask Claude Code to install openai-whisper and ffmpeg); text messages work without them")
     try:
         os.makedirs(VOICE_DIR)
     except OSError:

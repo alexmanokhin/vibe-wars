@@ -181,6 +181,7 @@ def handle_voice(chat, msg):
         return
     send(chat, "<b>Transcript:</b>\n%s\n\n%s"
          % (esc(got["text"][:1500]), esc(got["msg"])))
+    follow_link(chat, got)
 
 
 def save_file(msg):
@@ -238,6 +239,7 @@ def handle_message(msg):
             try:
                 got = C.ingest(text=text)
                 send(chat, esc(got["msg"]))
+                follow_link(chat, got)
             except Exception as exc:
                 send(chat, "failed: %s" % esc(str(exc)[:300]))
         return
@@ -346,6 +348,26 @@ def _sent_index():
             return json.load(fh)
     except Exception:
         return {}
+
+
+def follow_link(chat, got):
+    """A new session's app link is known only after its first screen: the
+    guardian reads it within a minute. Send it then, as the reply promised."""
+    m = re.match(r"new session ([0-9a-f]{8}) launched", (got or {}).get("msg") or "")
+    if not m:
+        return
+    who = m.group(1)
+
+    def run():
+        for _ in range(18):
+            time.sleep(10)
+            reg = C.G.load(C.G.REG_PATH, {})
+            for uuid, rec in (reg.get("sessions") or {}).items():
+                if uuid.startswith(who) and rec.get("app_session"):
+                    send(chat, "session %s \u2192 https://claude.ai/code/%s"
+                         % (who, esc(rec["app_session"])))
+                    return
+    threading.Thread(target=run, daemon=True).start()
 
 
 def send_document(chat, path, caption):

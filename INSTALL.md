@@ -161,7 +161,8 @@ plus `--with-bot` / `--with-daemon` if present) and restart the panel:
 - macOS: `cp ~/.vibe-wars/launchd/com.vibe-wars.*.plist ~/Library/LaunchAgents/`,
   then for each plist `launchctl bootout gui/$(id -u) "$p"` and
   `launchctl bootstrap gui/$(id -u) "$p"`.
-- Linux: `systemctl --user daemon-reload && systemctl --user restart vibe-wars-rc-panel.service`.
+- Linux: `systemctl --user daemon-reload && systemctl --user restart vibe-wars-rc-panel.service`,
+  and if the bot is installed also `systemctl --user restart vibe-wars-rc-bot.service`.
 
 The other services run on timers and pick up the new code by themselves.
 Run step 5 again and tell the user what changed (`git log --oneline -5`).

@@ -358,15 +358,33 @@ def follow_link(chat, got):
         return
     who = m.group(1)
 
+    def link():
+        # the launch log has it seconds after start; the registry gets it on
+        # the guardian's next archive pass (up to 5 min)
+        import glob
+        for f in glob.glob("/tmp/rc-new-*.uuid"):
+            try:
+                with open(f) as fh:
+                    if not fh.read().strip().startswith(who):
+                        continue
+            except OSError:
+                continue
+            got = C.G.head_link(f[:-len(".uuid")] + ".log")
+            if got:
+                return got
+        reg = C.G.load(C.G.REG_PATH, {})
+        for uuid, rec in (reg.get("sessions") or {}).items():
+            if uuid.startswith(who) and rec.get("app_session"):
+                return rec["app_session"]
+        return ""
+
     def run():
-        for _ in range(18):
-            time.sleep(10)
-            reg = C.G.load(C.G.REG_PATH, {})
-            for uuid, rec in (reg.get("sessions") or {}).items():
-                if uuid.startswith(who) and rec.get("app_session"):
-                    send(chat, "session %s \u2192 https://claude.ai/code/%s"
-                         % (who, esc(rec["app_session"])))
-                    return
+        for _ in range(36):
+            time.sleep(5)
+            got = link()
+            if got:
+                send(chat, "session %s \u2192 https://claude.ai/code/%s" % (who, esc(got)))
+                return
     threading.Thread(target=run, daemon=True).start()
 
 

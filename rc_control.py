@@ -111,12 +111,15 @@ def pid_for(uuid, rows=None):
     argv but is not the process to signal — same test the guardian uses.
     """
     rows = rows or ps_rows()
+    vp = _vibe_pid(uuid, rows) if uuid in _codex_paths() else None
+    if vp:
+        return vp
     for pid, args in rows:
         # a --fork-session copy carries the uuid too, but it is another session:
         # taken for this one it blocked a relaunch as "already live" (09-28)
-        if uuid not in args or "--remote-control" not in args or "--fork-session" in args:
+        if uuid not in args or not G.is_rc_args(args) or "--fork-session" in args:
             continue
-        if not args.lstrip().startswith(G.CLAUDE):
+        if not (args.lstrip().startswith(G.CLAUDE) or _is_codex_main(args)):
             continue
         return pid
 
@@ -132,7 +135,31 @@ def pid_for(uuid, rows=None):
     if wrapper is None:
         return None
     for pid, ppid, args in ps_tree():
-        if ppid == wrapper and args.lstrip().startswith(G.CLAUDE):
+        if ppid == wrapper and (args.lstrip().startswith(G.CLAUDE) or _is_codex_main(args)):
+            return pid
+    return None
+
+
+def _is_codex_main(args):
+    """The codex TUI itself, not its `script` wrapper (rc_codex sessions)."""
+    first = args.lstrip().split(" ", 1)[0]
+    return G.is_codex_args(args) and os.path.basename(first) == "codex"
+
+
+def _vibe_pid(uuid, rows):
+    """vibe-rs under the session's `script` wrapper (rc_vibe): the TUI process
+    carries no flags of its own, so find the wrapper and take its child."""
+    wrapper = None
+    for pid, args in rows:
+        if not (G.is_vibe_args(args) and re.match(r"\s*(\S*/)?script\s", args)):
+            continue
+        if uuid in args or G.new_session_uuid(args) == uuid:
+            wrapper = pid
+            break
+    if wrapper is None:
+        return None
+    for pid, ppid, args in ps_tree():
+        if ppid == wrapper and os.path.basename(args.lstrip().split(" ", 1)[0]).startswith("vibe"):
             return pid
     return None
 
@@ -453,6 +480,7 @@ def snapshot():
             "live": is_live,
             "pid": _pid,
             "link": r.get("app_session") or "",
+            "provider": r.get("provider") or "",
             "busy_age": age,
             # Статус с экрана TUI: он говорит и там, где транскрипт молчит.
             "tui": _tui,
@@ -481,7 +509,26 @@ def snapshot():
         load1 = os.getloadavg()[0]
     except OSError:
         load1 = -1.0
+    try:
+        import rc_providers
+        providers = rc_providers.available()
+    except Exception:
+        providers = []
+    try:
+        import rc_codex
+        if rc_codex.codex_bin():
+            providers.append({"id": "codex", "label": "Codex", "model": "ChatGPT login"})
+    except Exception:
+        pass
+    try:
+        import rc_vibe
+        if rc_vibe.vibe_bin() and rc_providers.vibe_key():
+            providers.append({"id": "vibe", "label": "Mistral Vibe",
+                              "model": rc_vibe.MODELS[rc_vibe.DEFAULT_MODEL]["display"]})
+    except Exception:
+        pass
     meta = {
+        "providers": providers,
         "live_restored": len(live),
         "live_app": len(app),
         "live_total": len(live) + len(app),
@@ -600,6 +647,10 @@ def usage(force=False):
         pass
 
     out = {"ts": time.time()}
+    if CFG.DEFAULT_PROVIDER:
+        # no Claude subscription on this computer: there are no Claude limits
+        out["error"] = "no Claude subscription (sessions run on %s)" % CFG.DEFAULT_PROVIDER
+        return out
     try:
         try:
             os.makedirs(USAGE_DIR, exist_ok=True)
@@ -1490,6 +1541,9 @@ def log_for(uuid, rows=None):
     return None
 
 
+_CODEX_TUI = {}
+
+
 def tui_status(path):
     """Что Claude Code делает прямо сейчас, по последнему экрану TUI.
 
@@ -1503,6 +1557,21 @@ def tui_status(path):
         st = os.stat(path)
     except OSError:
         return {"kind": "", "detail": ""}
+    if "/rc-" in path:
+        # a Codex or Vibe TUI says its state outright (OSC 7501); cached per
+        # log version, since every Claude log is asked too and answers ''
+        ck = (path, st.st_size, st.st_mtime_ns)
+        cx = _CODEX_TUI.get(path)
+        if not cx or cx[0] != ck:
+            try:
+                import rc_codex
+                cx = (ck, rc_codex.tui_state(path))
+            except Exception:
+                cx = (ck, "")
+            _CODEX_TUI[path] = cx
+        cx = cx[1]
+        if cx:
+            return {"kind": "working" if cx == "working" else "idle", "detail": ""}
     key = (path, st.st_size, int(st.st_mtime))
     if key in _TUI_MEMO:
         return _tui_fresh(_TUI_MEMO[key], st.st_mtime)
@@ -2109,8 +2178,27 @@ def _find_paths(text, cwd, cache):
     return out
 
 
+_CODEX_MAP = {"mt": None, "map": {}}
+
+
+def _codex_paths():
+    """{uuid: thread path} of Codex and Mistral Vibe sessions, cached per
+    registry version: _tx_path runs on every poll and must stay a dict lookup."""
+    try:
+        mt = os.stat(G.REG_PATH).st_mtime_ns
+    except OSError:
+        return {}
+    if _CODEX_MAP["mt"] != mt:
+        m = {}
+        for u, r in (G.load(G.REG_PATH, {}).get("sessions") or {}).items():
+            if isinstance(r, dict) and r.get("provider") in ("codex", "vibe") and r.get("rollout"):
+                m[u] = r["rollout"]
+        _CODEX_MAP.update(mt=mt, map=m)
+    return _CODEX_MAP["map"]
+
+
 def _tx_path(uuid):
-    return os.path.join(G.PROJ, uuid + ".jsonl")
+    return _codex_paths().get(uuid) or os.path.join(G.PROJ, uuid + ".jsonl")
 
 
 def _tail_records(path, size):
@@ -2417,6 +2505,30 @@ def _sum_source(path, size):
     return "\n".join(out[-30:])[:10000]
 
 
+def helper_run(prompt, model, timeout):
+    """One `claude -p` for a background helper (titles, voice fixes, routing).
+    Without a Claude subscription here (CFG.DEFAULT_PROVIDER) it runs on that
+    provider's fast model instead."""
+    env = None
+    if CFG.DEFAULT_PROVIDER:
+        import rc_providers
+        p = rc_providers.PROVIDERS.get(CFG.DEFAULT_PROVIDER)
+        if not p:
+            # Codex / Mistral Vibe only: no `claude -p` here; the callers fall
+            # back to the first prompt as the title
+            raise RuntimeError("no helper model without Claude")
+        env = dict(os.environ)
+        with open(rc_providers.env_file(CFG.DEFAULT_PROVIDER)) as fh:
+            for line in fh:
+                k, _, v = line.strip().partition("=")
+                if k:
+                    env[k] = v.strip("'")
+        model = p.get("fast") or model
+    return subprocess.run([CLAUDE_BIN, "-p", prompt, "--model", model] + NO_USER_SETTINGS,
+                          capture_output=True, text=True, errors="replace",
+                          timeout=timeout, cwd=SUM_DIR, env=env)
+
+
 def summary_for(path):
     st = os.stat(path)
     src = _sum_source(path, st.st_size)
@@ -2427,11 +2539,8 @@ def summary_for(path):
     except OSError:
         pass
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", SUM_PROMPT + "<conversation>\n" + src
-                            + "\n</conversation>",
-                            "--model", SUM_MODEL] + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=180, cwd=SUM_DIR)
+        r = helper_run(SUM_PROMPT + "<conversation>\n" + src + "\n</conversation>",
+                       SUM_MODEL, 180)
     except Exception:
         return None
     # ⛔ Не схлопывать весь stdout в одну строку. На мини стоит глобальный
@@ -2592,13 +2701,34 @@ def transcript(pref, limit=TX_LIMIT, sig=None):
 
 def _tx_parsed(uuid, path):
     """_tx_parse() once per version of the file."""
+    if os.path.isdir(path):
+        # a Mistral Vibe session folder (rc_vibe)
+        key = G.vibe_version(path)
+        with _TX_CACHE_MU:
+            hit = _TX_CACHE.get(uuid)
+        if hit and hit[0] == key:
+            return hit[1]
+        import rc_vibe
+        msgs = rc_vibe.session_rows(path)[-TX_LIMIT * 4:]
+        parsed = {"msgs": msgs, "clipped": False, "arts": [], "turn": None, "sigs": {},
+                  "said": sum(1 for m in msgs if m["role"] in ("user", "assistant"))}
+        with _TX_CACHE_MU:
+            _TX_CACHE.pop(uuid, None)
+            _TX_CACHE[uuid] = (key, parsed)
+        return parsed
     st = os.stat(path)
     key = (st.st_size, st.st_mtime_ns)
     with _TX_CACHE_MU:
         hit = _TX_CACHE.get(uuid)
     if hit and hit[0] == key:
         return hit[1]
-    parsed = _tx_parse(path, st.st_size)
+    if "/.codex/sessions/" in path:
+        import rc_codex
+        msgs = rc_codex.rollout_rows(path)[-TX_LIMIT * 4:]
+        parsed = {"msgs": msgs, "clipped": False, "arts": [], "turn": None, "sigs": {},
+                  "said": sum(1 for m in msgs if m["role"] in ("user", "assistant"))}
+    else:
+        parsed = _tx_parse(path, st.st_size)
     with _TX_CACHE_MU:
         _TX_CACHE.pop(uuid, None)
         _TX_CACHE[uuid] = (key, parsed)
@@ -4617,6 +4747,20 @@ def _delivered(uuid, line):
     """
     path = _tx_path(uuid)
     probe = " ".join(line.split())[:40]
+    if os.path.isdir(path):
+        # a Mistral Vibe session folder (rc_vibe). The text was typed just
+        # before this call, so a user entry from the last minute with the same
+        # words is this message.
+        import rc_vibe
+        since = time.time() - 60
+        end = time.time() + SAY_CONFIRM_S
+        while time.time() < end:
+            for m in rc_vibe.session_rows(path):
+                if (m.get("role") == "user" and (m.get("tse") or 0) >= since
+                        and probe in " ".join((m.get("text") or "").split())):
+                    return True
+            time.sleep(1.0)
+        return False
     try:
         start = os.path.getsize(path)
     except OSError:
@@ -4635,6 +4779,24 @@ def _delivered(uuid, line):
         except OSError:
             continue
         if size <= start:
+            continue
+        if "/.codex/sessions/" in path:
+            # a Codex thread (rc_codex): the user message is a response_item
+            import rc_codex
+            try:
+                with open(path, "rb") as fh:
+                    fh.seek(start)
+                    blob = fh.read().decode("utf-8", "ignore")
+            except OSError:
+                continue
+            for ln in blob.splitlines():
+                try:
+                    p = (json.loads(ln) or {}).get("payload") or {}
+                except ValueError:
+                    continue
+                if p.get("type") == "message" and p.get("role") == "user":
+                    if probe in " ".join(rc_codex._texts(p.get("content")).split()):
+                        return True
             continue
         for rec in _tail_records(path, size):
             # Занятая сессия кладёт ввод в очередь TUI и пишет его типом
@@ -4989,10 +5151,7 @@ def _voice_polish(text):
     try:
         # --effort low тут пробовали: на замере вышло 34 с против 26 — не
         # быстрее, а медленнее. Оставлен эффорт по умолчанию.
-        r = subprocess.run([CLAUDE_BIN, "-p", VOICE_FIX_PROMPT + text,
-                            "--model", SUM_MODEL] + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=90, cwd=SUM_DIR)
+        r = helper_run(VOICE_FIX_PROMPT + text, SUM_MODEL, 90)
     except Exception:
         return text
     # Модель иногда обрамляет ответ разделителем или кавычками — в текст
@@ -5235,10 +5394,7 @@ def _route(text):
     except OSError:
         pass
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", prompt, "--model", SUM_MODEL]
-                           + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=120, cwd=SUM_DIR)
+        r = helper_run(prompt, SUM_MODEL, 120)
     except Exception:
         return None
     raw = (r.stdout or "").strip()
@@ -5404,10 +5560,7 @@ def continue_pick(text):
         pass
     t0 = time.time()
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", prompt, "--model", CONT_MODEL]
-                           + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=150, cwd=SUM_DIR)
+        r = helper_run(prompt, CONT_MODEL, 150)
     except Exception as exc:
         raise ValueError("could not ask the model which session fits (%s)" % exc)
     raw = (r.stdout or "").strip()
@@ -5639,16 +5792,25 @@ def _type_into(fifo, text, log=None):
     """
     body = _scrub_invisible(text.strip())
     multiline = "\n" in body
+    # Codex takes fast keystrokes for a paste burst and an Enter inside the
+    # burst for a new line, so the first prompt sat unsent in its input box.
+    # To Codex the text goes as a bracketed paste and Enter a second later.
+    codex = False
+    try:
+        import rc_codex
+        codex = bool(log) and rc_codex.tui_state(log) != "" and b"app=vibe" not in rc_codex._tail(log)
+    except Exception:
+        pass
     size0 = _log_size(log)
     fd = os.open(fifo, os.O_WRONLY | os.O_NONBLOCK)
     try:
         _write_all(fd, b"\x7f" * CLEAR_BACKSPACES)
         time.sleep(0.4)
-        if multiline:
+        if multiline or codex:
             _write_all(fd, b"\x1b[200~" + body.encode("utf-8") + b"\x1b[201~")
         else:
             _write_all(fd, body.encode("utf-8"))
-        time.sleep(0.5 if multiline else 0.2)
+        time.sleep(1.2 if codex else 0.5 if multiline else 0.2)
         _write_all(fd, b"\r")
     finally:
         os.close(fd)
@@ -5677,6 +5839,42 @@ def act_new(target, wait_link=True):
     # spinning after the session was already working (10-16)
     if target.get("nolink"):
         wait_link = False
+    provider = (target.get("provider") or "").strip() or None
+    if not provider and not model and CFG.DEFAULT_PROVIDER:
+        provider = CFG.DEFAULT_PROVIDER
+    if model and model.startswith("provider:"):   # HQ's model list carries providers too
+        provider, model = model[len("provider:"):], None
+    if provider == "claude":
+        provider = None
+    if provider == "codex":
+        # the Codex CLI on its ChatGPT login (rc_codex), its own model and effort
+        import rc_codex
+        if not rc_codex.codex_bin():
+            raise ValueError("Codex is not installed on this computer")
+        model = effort = None
+        wait_link = False
+    elif provider == "vibe":
+        # the Mistral Vibe CLI on a Vibe plan key (rc_vibe)
+        import rc_vibe
+        import rc_providers
+        if not rc_vibe.vibe_bin():
+            raise ValueError("Mistral Vibe is not installed on this computer")
+        if not rc_providers.vibe_key():
+            raise ValueError("no Mistral Vibe key: see INSTALL.md, \"Other models\"")
+        model = effort = None
+        wait_link = False
+    elif provider:
+        # another model behind the same claude (rc_providers): its env picks the
+        # model; it has no Remote Control, so there is no link to wait for
+        import rc_providers
+        if provider not in rc_providers.PROVIDERS:
+            raise ValueError("unknown provider %r" % provider[:20])
+        ok, bal = rc_providers.balance(provider)
+        if ok is False:
+            raise ValueError("%s balance is empty (%s): top it up first"
+                             % (rc_providers.label(provider), bal))
+        model = effort = None
+        wait_link = False
     if model and model not in MODELS:
         raise ValueError("invalid model %r" % model[:20])
     if effort and effort not in EFFORTS:
@@ -5687,14 +5885,14 @@ def act_new(target, wait_link=True):
     if not os.path.isdir(G.WORKDIR):
         raise ValueError("the work folder %s does not exist: run "
                          "mkdir -p %s" % (G.WORKDIR, G.WORKDIR))
-    if not CFG.workdir_trusted():
+    if provider not in ("codex", "vibe") and not CFG.workdir_trusted():
         raise ValueError("Claude Code does not trust the work folder yet. In a "
                          "terminal run: cd %s && claude, answer \"Yes, I trust "
                          "this folder\", then /exit and try again" % G.WORKDIR)
     # a fresh install: Claude creates the project folder only on the first session
     os.makedirs(G.PROJ, exist_ok=True)
     before = set(os.listdir(G.PROJ))
-    logf, fifo = G.launch_new(name, key, model, effort)
+    logf, fifo = G.launch_new(name, key, model, effort, provider)
 
     # uuid узнаём по появившемуся транскрипту: до первого промпта Claude его не
     # создаёт, поэтому ждём, а не спрашиваем.
@@ -5703,7 +5901,53 @@ def act_new(target, wait_link=True):
     # завелась с нулём сообщений). Транскрипт же создаётся при старте, ещё до
     # любого промпта, — вот он и служит сигналом «загрузился».
     uuid = None
-    for _ in range(30):
+    typed = False
+    rollout = ""
+    t0 = time.time()
+    if provider in ("codex", "vibe"):
+        # Codex and Vibe say idle at start, work through their startup, then
+        # idle again: type only into that second idle, then find the thread
+        import rc_codex
+        vhome = None
+        if provider == "vibe":
+            import rc_providers
+            vhome = rc_providers.vibe_home()
+        seen_work = False
+        for _ in range(60):
+            time.sleep(1.0)
+            st = rc_codex.tui_state(logf)
+            seen_work = seen_work or st == "working"
+            if st == "idle" and (seen_work or time.time() - t0 > 10):
+                break
+        time.sleep(1.0)
+        _type_into(fifo, text, logf)
+        typed = True
+        for _ in range(30):
+            time.sleep(1.0)
+            if provider == "vibe":
+                import rc_vibe
+                rollout, cid = rc_vibe.find_session(t0, G.WORKDIR, vhome)
+            else:
+                rollout, cid = rc_codex.find_rollout(t0, G.WORKDIR)
+            if cid:
+                uuid = cid
+                break
+    elif provider:
+        # On another model (an API token in the env) Claude Code writes the
+        # transcript at the first prompt, not at start: wait for the input box
+        # on its screen, type, then look for the transcript.
+        for _ in range(40):
+            time.sleep(1.0)
+            try:
+                with open(logf, "rb") as fh:
+                    if "\u276f".encode() in fh.read():
+                        break
+            except OSError:
+                pass
+        time.sleep(2.0)
+        _type_into(fifo, text, logf)
+        typed = True
+    for _ in range(0 if provider in ("codex", "vibe") else 30):
         time.sleep(1.0)
         try:
             fresh = [f for f in os.listdir(G.PROJ)
@@ -5749,13 +5993,19 @@ def act_new(target, wait_link=True):
                 rec["model"] = model
             if effort:
                 rec["effort"] = effort
+            if provider:
+                rec["provider"] = provider
+            if provider in ("codex", "vibe") and rollout:
+                rec["rollout"] = rollout
             if not rec.get("prompt"):
                 # имя у нас уже есть — census вывел бы «session xxxxxxxx»,
                 # пока первая реплика не долетит до диска
                 rec["prompt"] = text[:200]
                 rec["name"] = name
             try:
-                st = os.stat(os.path.join(G.PROJ, uuid + ".jsonl"))
+                st = os.stat(rollout if provider == "codex" and rollout
+                             else os.path.join(rollout, "meta.json") if provider == "vibe" and rollout
+                             else os.path.join(G.PROJ, uuid + ".jsonl"))
                 rec["last_active"] = datetime.fromtimestamp(
                     st.st_mtime).isoformat(timespec="seconds")
                 rec["last_active_ts"] = st.st_mtime
@@ -5769,9 +6019,10 @@ def act_new(target, wait_link=True):
         except Exception:
             pass        # не дались — гардиан подберёт её своим проходом
 
-    time.sleep(2.0)      # дать TUI дорисовать первый экран
     try:
-        _type_into(fifo, text, logf)
+        if not typed:
+            time.sleep(2.0)      # дать TUI дорисовать первый экран
+            _type_into(fifo, text, logf)
     except OSError as exc:
         return ("session %s launched, but the first prompt did not land (%s) — "
                 "write to it from the chat" % (uuid[:8] if uuid else key, exc.strerror or exc))
@@ -5790,6 +6041,10 @@ def act_new(target, wait_link=True):
     who = uuid[:8] if uuid else key
     if link:
         return "new session %s → https://claude.ai/code/%s" % (who, link)
+    if provider:
+        import rc_providers
+        return "new session %s launched on %s" % (
+            who, {"codex": "Codex", "vibe": "Mistral Vibe"}.get(provider) or rc_providers.label(provider))
     return "new session %s launched, the link appears within a minute" % who
 
 

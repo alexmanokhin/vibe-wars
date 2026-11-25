@@ -10,7 +10,9 @@ Not affiliated with Anthropic.
 ## Requirements
 
 - A Mac (macOS 13 or newer) or a Linux machine that stays on while you work.
-- Claude Code installed and signed in with a paid Claude subscription (Pro or Max).
+- One paid subscription with its coding agent: Claude (Pro or Max) with Claude Code,
+  ChatGPT with Codex, or Mistral's Vibe plan with Vibe. A MiniMax Token Plan also
+  works, through Claude Code.
 - Python 3.9+ (on a Mac: the Command Line Tools, `xcode-select --install`) and git.
 - Tailscale installed and signed in on the computer and on the phone (same account),
   only if you want to open the dashboard from the phone.
@@ -32,6 +34,17 @@ Not affiliated with Anthropic.
    ```
    Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
    ```
+
+No Claude subscription? In step 1 start your own agent in the same folder
+instead, and paste the same line into it:
+
+- ChatGPT: `mkdir -p ~/rc-work && cd ~/rc-work && codex`
+- Mistral Vibe plan: `mkdir -p ~/rc-work && cd ~/rc-work && vibe`
+- MiniMax Token Plan: `mkdir -p ~/rc-work && cd ~/rc-work && ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_AUTH_TOKEN=<your MiniMax plan key> ANTHROPIC_MODEL=MiniMax-M3 claude`
+
+Have more than one? Agents of every subscription you add show up in RECRUIT:
+tell your agent `Add Codex to Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Other models")`
+(or Mistral Vibe, or MiniMax).
 
 Claude checks the prerequisites, asks only what it must, installs the
 background services (launchd on macOS, systemd on Linux), starts them and
@@ -93,7 +106,9 @@ v0.1. Many code comments are still in Russian.
 ## Что нужно
 
 - Mac (macOS 13+) или Linux-машина, которая включена, пока вы работаете.
-- Claude Code, вход с платной подпиской Claude (Pro или Max).
+- Одна платная подписка со своим агентом: Claude (Pro или Max) с Claude Code,
+  ChatGPT с Codex или Vibe-план Mistral с Vibe. Подходит и MiniMax Token Plan,
+  через Claude Code.
 - Python 3.9+ (на Mac: Command Line Tools, `xcode-select --install`) и git.
 - Tailscale на компьютере и на телефоне под одним аккаунтом, если нужен доступ с телефона.
 - По желанию: Telegram для алертов и управления (см. ниже).
@@ -114,6 +129,17 @@ v0.1. Many code comments are still in Russian.
    ```
    Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
    ```
+
+Нет подписки Claude? На шаге 1 запустите в той же папке своего агента и
+вставьте в него ту же строку:
+
+- ChatGPT: `mkdir -p ~/rc-work && cd ~/rc-work && codex`
+- Vibe-план Mistral: `mkdir -p ~/rc-work && cd ~/rc-work && vibe`
+- MiniMax Token Plan: `mkdir -p ~/rc-work && cd ~/rc-work && ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_AUTH_TOKEN=<ключ плана MiniMax> ANTHROPIC_MODEL=MiniMax-M3 claude`
+
+Есть несколько подписок? Агенты каждой появятся в RECRUIT: скажите агенту
+`Add Codex to Vibe Wars (follow ~/vibe-wars/INSTALL.md, "Other models")`
+(или Mistral Vibe, или MiniMax).
 
 Claude проверит требования, задаст только нужные вопросы, установит фоновые
 службы (launchd на Mac, systemd на Linux), запустит их и покажет адрес.

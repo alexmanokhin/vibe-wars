@@ -61,6 +61,8 @@ def jobs(args, cfg):
         env["RC_MAX_LIVE"] = str(args.max_live)
     if args.state_dir:
         env["RC_STATE_DIR"] = cfg.STATE_DIR
+    if args.default_provider:
+        env["RC_DEFAULT_PROVIDER"] = args.default_provider
 
     def py(unit, script, **extra):
         body = {
@@ -130,6 +132,8 @@ def main():
     ap.add_argument("--bind", default="127.0.0.1",
                     help="panel listen address (default 127.0.0.1)")
     ap.add_argument("--port", type=int, default=8788)
+    ap.add_argument("--default-provider", default="",
+                    help="no Claude subscription here: new sessions run on this provider (codex, vibe or minimax)")
     ap.add_argument("--max-live", type=int, default=0,
                     help="cap on live sessions; without it the code default applies")
     ap.add_argument("--workdir", default="",

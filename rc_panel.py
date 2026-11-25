@@ -4252,10 +4252,18 @@ def row_head_html(r, devs=None, cur=None):
     # Модель, эффорт и ссылку прячем под «ещё»: они нужны раз в день, а место
     # в шапке занимали постоянно. Наверху остаётся только то, чем пользуются.
     dg = r.get("digest") or {}
-    opts = [opt_select(r["short"], "model", r.get("model"), ROW_MODELS,
-                       "CLI default", model_name(dg.get("model_id"))),
-            opt_select(r["short"], "effort", r.get("effort"), ROW_EFFORTS,
-                       "CLI default effort", dg.get("effort_now") or "")]
+    if r.get("provider"):
+        # another model (Codex, Mistral Vibe, a plan key): Claude models and
+        # efforts do not apply to it, so the selects would only mislead
+        pl = {"codex": "Codex", "vibe": "Mistral Vibe", "minimax": "MiniMax"}.get(r["provider"], r["provider"])
+        opts = ['<select class="rowopt" disabled title="runs on %s"><option>%s</option></select>'
+                % (esc(pl), esc(pl + (" · " + dg["model_id"] if dg.get("model_id")
+                                         and dg.get("model_id") != "<synthetic>" else "")))]
+    else:
+        opts = [opt_select(r["short"], "model", r.get("model"), ROW_MODELS,
+                           "CLI default", model_name(dg.get("model_id"))),
+                opt_select(r["short"], "effort", r.get("effort"), ROW_EFFORTS,
+                           "CLI default effort", dg.get("effort_now") or "")]
     extra = []
     if r.get("empty"):
         extra.append('<span class="warnnote">empty — a claude -p /usage artefact, '

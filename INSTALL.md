@@ -22,10 +22,17 @@ Run and check each; stop and tell the user exactly what to install if one fails.
 - Python: on macOS `/usr/bin/python3 --version` (3.9 or newer; if missing, tell
   the user to run `xcode-select --install` and wait for it). On Linux
   `python3 --version`.
-- Claude Code: `claude --version`. Signed in: `claude -p "reply ok"` from a
-  folder that is not the home folder prints `ok` (not `Not logged in`). If not
-  signed in, ASK the user to run `claude` in a terminal and sign in with their
-  paid Claude subscription, then continue.
+- The coding agent. You may be Claude Code, Codex or Mistral Vibe; the user
+  needs at least one paid subscription:
+  - Claude Code: `claude --version`; signed in if `claude -p "reply ok"` from
+    a folder that is not the home folder prints `ok` (not `Not logged in`).
+    If `echo "$ANTHROPIC_BASE_URL"` contains `minimax`, this Claude Code runs on
+    a MiniMax plan key: there is no Claude subscription (MiniMax mode).
+  - Codex (ChatGPT subscription): `codex --version`, signed in with ChatGPT.
+  - Mistral Vibe (Vibe plan): `vibe --version`, set up with a Vibe key.
+  If none of them works, ASK the user which subscription they have and stop.
+  Without a Claude subscription do the "Other models" section below as part
+  of the install (it sets the default for new sessions).
 - Tailscale (only for phone access): `tailscale status` (macOS app CLI:
   `/Applications/Tailscale.app/Contents/MacOS/Tailscale status`). If missing,
   phone access is skipped; everything else still works.
@@ -49,7 +56,9 @@ mkdir -p ~/rc-work
 ```
 
 Claude Code must trust the folder once, or every session the panel starts
-hangs on the trust question. If you (this Claude Code) were started in
+hangs on the trust question. (Codex or Mistral Vibe only, no Claude Code on
+this computer: skip this step; the panel starts them with their own trust
+flags.) If you (this Claude Code) were started in
 `~/rc-work`, it is already trusted: go on. Otherwise ASK the user to open a
 second terminal, run `cd ~/rc-work && claude`, answer "Yes, I trust this
 folder", type `/exit`, and tell you when done.
@@ -96,6 +105,37 @@ them is the point of this step (do not make them run a command for it). Tell
 them to open it once in the browser on this computer; the browser then
 remembers the token. Then tell them: in the panel, the HQ link (or `/play`)
 opens the game view; RECRUIT starts a new Claude session.
+
+## Other models (Codex, Mistral Vibe, MiniMax)
+
+Sessions can run on other subscriptions besides Claude. Each appears in the
+model list of RECRUIT once set up. Only subscriptions, no per-token API keys.
+
+- **Codex** (ChatGPT Plus or Pro): needs the Codex CLI signed in with ChatGPT.
+  If `codex --version` fails, install it (`npm install -g @openai/codex`; on a
+  Mac also `brew install codex`), then ASK the user to run `codex` once in a
+  terminal and sign in with ChatGPT. Nothing to configure in Vibe Wars.
+- **Mistral Vibe** (Vibe plan, runs DeepSeek V4.1 Flash): needs the Vibe CLI
+  (`vibe --version`; install: `curl -LsSf https://mistral.ai/vibe/install.sh | bash`)
+  and a Vibe key: ASK the user to create one at
+  https://chat.mistral.ai/code/extensions?focus=key and paste it. Check it:
+  `curl -s https://api.mistral.ai/v1/billing/budget -H "Authorization: Bearer <key>"`
+  must show `vibe_budget`. Write `MISTRAL_VIBE_API_KEY=<key>` into
+  `~/.vibe-wars/providers/keys.env` (folder mode 700, file mode 600).
+- **MiniMax** (Token Plan): ASK for the plan key (platform.minimax.io, Token
+  Plan). Check it with one call:
+  `curl -s https://api.minimax.io/anthropic/v1/messages -H "x-api-key: <key>" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" -d '{"model":"MiniMax-M3","max_tokens":20,"messages":[{"role":"user","content":"say ok"}]}'`
+  must answer with text. Write `MINIMAX_API_KEY=<key>` into the same keys.env.
+  MiniMax sessions run in Claude Code, so the work folder must be trusted
+  (step 3).
+
+No Claude subscription: add `--default-provider codex` (or `vibe`, `minimax`)
+to the step 4a or 4b command, so new sessions and the Telegram bot use it.
+
+Adding one later: do the matching item above, re-run step 4a/4b with the same
+settings (as in "Updating") and restart the panel. Verify: in HQ, RECRUIT
+lists the model. Tell the user these sessions have no link in the Claude app;
+they live in the panel, on the phone through Tailscale and in the Telegram bot.
 
 ## 6. Phone access through Tailscale (optional)
 

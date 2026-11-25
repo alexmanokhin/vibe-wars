@@ -1350,10 +1350,13 @@ def api(since=0, fleet=None, snap=None):
             names.append(nm)
     out["projects"] = names
     out["models"] = [["", "CLI default"]] + [list(x) for x in C.MODEL_CHOICES]
+    # other models behind the same claude (rc_providers), only those with a key
+    for p in ((snap.get("meta") or {}).get("providers") or []):
+        out["models"].append(["provider:" + p["id"], "%s (%s)" % (p["label"], p["model"])])
     out["efforts"] = [""] + list(C.EFFORTS)
     recent = sorted((r for r in rows if r.get("live")), key=lambda r: -(r.get("la_ts") or 0))
     known = set(x[0] for x in C.MODEL_CHOICES)
-    out["model_default"] = next(((r.get("digest") or {}).get("model_id") for r in recent
+    out["model_default"] = ("provider:" + C.CFG.DEFAULT_PROVIDER) if C.CFG.DEFAULT_PROVIDER else next(((r.get("digest") or {}).get("model_id") for r in recent
                                  if (r.get("digest") or {}).get("model_id") in known), "")
     out["effort_default"] = next((r.get("effort") or (r.get("digest") or {}).get("effort_now")
                                   for r in recent if r.get("effort")

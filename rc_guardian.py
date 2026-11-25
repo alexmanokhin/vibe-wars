@@ -471,15 +471,21 @@ def husk_pids():
     conn = connected_pids()
     if not conn:                     # lsof unavailable — assume nothing is a husk
         return []
+    # a session on another model (rc_providers) has no relay at all and no
+    # socket while idle: by this test it would always look like a husk
+    other = provider_uuids()
     out = []
     for pid, etime, args in ps_lines_etime():
-        if "--remote-control" not in args:
+        if not is_rc_args(args):
             continue
-        if not re.search(r"--resume\s+[0-9a-f-]{36}", args):
+        if not RESUME_RE.search(args):
             continue
         if not args.lstrip().startswith(CLAUDE):   # skip the `script` wrapper
             continue
         if pid in conn or etime < HUSK_GRACE_S:
+            continue
+        m = RESUME_RE.search(args)
+        if m and m.group(1) in other:
             continue
         out.append(pid)
     return out
@@ -494,9 +500,9 @@ def live_uuids():
     husks = set(husk_pids())
     found = set()
     for pid, args in ps_lines():
-        if "--remote-control" not in args or pid in husks or "--fork-session" in args:
+        if not is_rc_args(args) or pid in husks or "--fork-session" in args:
             continue
-        m = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+        m = RESUME_RE.search(args)
         if m:
             found.add(m.group(1))
             continue
@@ -507,6 +513,25 @@ def live_uuids():
 
 
 NEWLOG_RE = re.compile(r"/tmp/rc-new-([\w.-]+)\.log")
+
+# Codex sessions (rc_codex) carry no --remote-control and resume as
+# `codex resume <id>`; these two flags are in every one rc_codex launches.
+CODEX_MARK = ("--no-daemon", "--dangerously-bypass-approvals-and-sandbox")
+RESUME_RE = re.compile(r"(?:^|\s)(?:--)?resume\s+([0-9a-f-]{36})")
+
+
+def is_codex_args(args):
+    return all(m in args for m in CODEX_MARK)
+
+
+def is_vibe_args(args):
+    """A Mistral Vibe session wrapper (rc_vibe): `vibe … --trust --auto-approve`."""
+    return "--trust" in args and "--auto-approve" in args and "vibe" in args
+
+
+def is_rc_args(args):
+    """A session process (or its wrapper) this panel runs: Claude, Codex or Vibe."""
+    return "--remote-control" in args or is_codex_args(args) or is_vibe_args(args)
 
 
 def new_session_uuid(args):
@@ -631,7 +656,7 @@ def reap_unbound_new():
     """
     n = 0
     for pid, etime, args in ps_lines_etime():
-        if not re.match(r"\s*(\S*/)?script\s", args) or "--remote-control" not in args:
+        if not re.match(r"\s*(\S*/)?script\s", args) or not is_rc_args(args):
             continue
         m = NEWLOG_RE.search(args)
         if not m or new_session_uuid(args):
@@ -799,7 +824,53 @@ def census(reg):
         rec["last_active_ts"] = st.st_mtime
         rec["size"] = st.st_size
         seen += 1
+    # Codex (rc_codex) and Mistral Vibe (rc_vibe) sessions keep their thread
+    # outside PROJ: a rollout file, or a session folder (activity = newest file)
+    for uuid, rec in sessions.items():
+        if not isinstance(rec, dict) or rec.get("provider") not in ("codex", "vibe"):
+            continue
+        path = rec.get("rollout") or ""
+        if rec["provider"] == "codex" and (not path or not os.path.exists(path)):
+            try:
+                import rc_codex
+                path = rc_codex.path_for_id(uuid)
+            except Exception:
+                path = ""
+            if path:
+                rec["rollout"] = path
+        if not path:
+            continue
+        if rec["provider"] == "vibe":
+            mt, size = vibe_version(path)
+        else:
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            mt, size = st.st_mtime, st.st_size
+        if not mt:
+            continue
+        rec["last_active"] = datetime.fromtimestamp(mt).isoformat(timespec="seconds")
+        rec["last_active_ts"] = mt
+        rec["size"] = size
+        seen += 1
     return seen
+
+
+def vibe_version(sdir):
+    """(newest mtime, total size) of a Vibe session folder's journal and meta:
+    the folder's own mtime does not move when a journal file grows."""
+    import glob
+    mt, size = 0.0, 0
+    for f in glob.glob(os.path.join(sdir, "journal", "*.jsonl")) + [os.path.join(sdir, "meta.json"),
+                                                                    os.path.join(sdir, "CURRENT")]:
+        try:
+            st = os.stat(f)
+        except OSError:
+            continue
+        mt = max(mt, st.st_mtime)
+        size += st.st_size
+    return mt, size
 
 
 def working_set(reg, live):
@@ -913,12 +984,12 @@ def wrapper_logs():
     """{uuid: pty log} for every running session wrapper, restored or new."""
     out = {}
     for _pid, args in ps_lines():
-        if "--remote-control" not in args or not re.match(r"\s*(\S*/)?script\s", args):
+        if not is_rc_args(args) or not re.match(r"\s*(\S*/)?script\s", args):
             continue
         m = re.search(r"(/tmp/rc-(?:restore|new)-[\w.-]+\.log)", args)
         if not m:
             continue
-        r = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+        r = RESUME_RE.search(args)
         uuid = r.group(1) if r else new_session_uuid(args)
         if uuid:
             out[uuid] = m.group(1)
@@ -1279,7 +1350,7 @@ def claude_exec():
         return CLAUDE
 
 
-def wrapper_text(fifo, logf, argv, answer):
+def wrapper_text(fifo, logf, argv, answer, env_file=None):
     """Текст обёртки одной сессии: держит канал ввода, пишет pty в лог,
     умирает вместе с claude.
 
@@ -1310,8 +1381,11 @@ def wrapper_text(fifo, logf, argv, answer):
     q = shlex.quote(fifo)
     ino = "stat -c %i" if IS_LINUX else "stat -f %i"
     lines = ["#!/bin/bash",
-             f"cd {shlex.quote(WORKDIR)}",
-             f"exec 3<>{q}",
+             f"cd {shlex.quote(WORKDIR)}"]
+    if env_file:
+        # another model behind the same claude (rc_providers): its env, never argv
+        lines.append(f"set -a; . {shlex.quote(env_file)}; set +a")
+    lines += [f"exec 3<>{q}",
              f"ino=$({ino} {q} 2>/dev/null)"]
     if answer:
         lines.append("printf '1\\n' >&3")
@@ -1354,9 +1428,12 @@ def launch_opts(uuid, rec, digests=None):
     Every assistant record carries message.model and effort; the digest keeps
     the latest of both per session.
     """
+    if rec.get("provider"):
+        # the provider's env names the model; Claude ids and efforts do not apply
+        return None, None, rec["provider"]
     model, effort = rec.get("model"), rec.get("effort")
     if model and effort:
-        return model, effort
+        return model, effort, None
     if digests is None:
         digests = load(DIGEST_PATH, {})
     d = digests.get(uuid) if isinstance(digests, dict) else None
@@ -1368,10 +1445,44 @@ def launch_opts(uuid, rec, digests=None):
         model = seen_model
     if not effort and seen_effort in EFFORT_VALUES:
         effort = seen_effort
-    return model or None, effort or None
+    return model or None, effort or None, None
 
 
-def launch(uuid, name, model=None, effort=None):
+def provider_env(provider):
+    """Env file for a session on another model (rc_providers), or None for Claude."""
+    if not provider or provider in ("codex", "vibe"):
+        return None
+    import rc_providers
+    return rc_providers.env_file(provider)
+
+
+def codex_cmd(resume_id=None):
+    import rc_codex
+    return rc_codex.launch_cmd(resume_id=resume_id)
+
+
+def vibe_cmd(resume_id=None):
+    import rc_vibe
+    import rc_providers
+    return rc_vibe.launch_cmd(resume_id=resume_id, home=rc_providers.vibe_home())
+
+
+def other_cmd(provider, resume_id=None):
+    """The command of a session that runs its own CLI (Codex, Mistral Vibe)."""
+    return vibe_cmd(resume_id) if provider == "vibe" else codex_cmd(resume_id)
+
+
+def provider_uuids():
+    """uuids of registry sessions that run on another model (rc_providers)."""
+    try:
+        reg = load(REG_PATH, {})
+    except Exception:
+        return set()
+    return {u for u, r in (reg.get("sessions") or {}).items()
+            if isinstance(r, dict) and r.get("provider")}
+
+
+def launch(uuid, name, model=None, effort=None, provider=None):
     """Start one restored session; returns the pty log path to read the link from.
 
     model/effort приходят из записи в реестре, а не из вызова, поэтому выбор
@@ -1387,6 +1498,7 @@ def launch(uuid, name, model=None, effort=None):
         opts += " --model " + shlex.quote(str(model))
     if effort:
         opts += " --effort " + shlex.quote(str(effort))
+    env_file = provider_env(provider)
     slug = re.sub(r"[^A-Za-z0-9]+", "-", name)[:24].strip("-") or uuid[:8]
     logf = f"/tmp/rc-restore-{uuid[:8]}-{slug}.log"
     # Written to a file rather than inlined: session names are raw user prompts
@@ -1403,9 +1515,11 @@ def launch(uuid, name, model=None, effort=None):
     with open(sh_path, "w") as fh:
         fh.write(wrapper_text(
             fifo, logf,
+            other_cmd(provider, uuid) if provider in ("codex", "vibe") else
             f"{shlex.quote(claude_exec())} --resume {shlex.quote(uuid)}{opts} "
             f"--remote-control {shlex.quote(name)}",
-            answer=True))
+            # codex and vibe resume open the thread with no dialog to answer
+            answer=provider not in ("codex", "vibe"), env_file=env_file))
     os.chmod(sh_path, 0o755)
     # setsid + (на Linux) свой scope — см. spawn_detached.
     try:
@@ -1415,7 +1529,7 @@ def launch(uuid, name, model=None, effort=None):
     return logf
 
 
-def launch_new(name, key, model=None, effort=None):
+def launch_new(name, key, model=None, effort=None, provider=None):
     """Поднять НОВУЮ сессию — без --resume, с нуля.
 
     uuid появится только когда Claude создаст транскрипт, поэтому канал ввода
@@ -1428,6 +1542,7 @@ def launch_new(name, key, model=None, effort=None):
         opts += " --model " + shlex.quote(str(model))
     if effort:
         opts += " --effort " + shlex.quote(str(effort))
+    env_file = provider_env(provider)
     logf = f"/tmp/rc-new-{key}.log"
     sh_path = f"/tmp/rc-launch-{key}.sh"
     fifo = f"/tmp/rc-in-{key}.fifo"
@@ -1440,8 +1555,9 @@ def launch_new(name, key, model=None, effort=None):
         # без --resume диалога возобновления нет — и ответа «1» тоже
         fh.write(wrapper_text(
             fifo, logf,
+            other_cmd(provider) if provider in ("codex", "vibe") else
             f"{shlex.quote(claude_exec())}{opts} --remote-control {shlex.quote(name)}",
-            answer=False))
+            answer=False, env_file=env_file))
     os.chmod(sh_path, 0o755)
     try:
         spawn_detached(sh_path)
@@ -1482,7 +1598,7 @@ def reap_husks():
     for pid, args in ps_lines():
         if pid not in want:
             continue
-        m = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+        m = RESUME_RE.search(args)
         if m:
             uuids.append(m.group(1))
     groups = set()
@@ -1813,12 +1929,12 @@ def session_procs(rows=None):
     rows = rows if rows is not None else ps_tree()
     out = {}
     for pid, _pp, _st, args in rows:
-        if "--remote-control" not in args or not re.match(r"\s*(\S*/)?script\s", args):
+        if not is_rc_args(args) or not re.match(r"\s*(\S*/)?script\s", args):
             continue
         m = re.search(r"(/tmp/rc-(?:restore|new)-[\w.-]+\.log)", args)
         if not m:
             continue
-        r = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+        r = RESUME_RE.search(args)
         uuid = r.group(1) if r else new_session_uuid(args)
         if not uuid:
             continue
@@ -1829,7 +1945,7 @@ def session_procs(rows=None):
         # find_wedged() watch that bash for zombies, so it never fired: 551f1f1d
         # sat frozen 3 h on 09-28 with two <defunct> children under claude.
         for cpid, cpp, cst, cargs in rows:
-            if (cpp == pid and not cst.startswith("Z") and "--remote-control" in cargs
+            if (cpp == pid and not cst.startswith("Z") and is_rc_args(cargs)
                     and not re.match(r"\s*(\S*/)?script\s", cargs)):
                 out[uuid] = (cpid, m.group(1))
                 break
@@ -2469,9 +2585,9 @@ def kill_restored():
     husks = set(husk_pids())
     pids = []
     for pid, args in ps_lines():
-        if "--remote-control" not in args or "--fork-session" in args:
+        if not is_rc_args(args) or "--fork-session" in args:
             continue
-        if re.search(r"--resume\s+[0-9a-f-]{36}", args) or new_session_uuid(args) or pid in husks:
+        if RESUME_RE.search(args) or new_session_uuid(args) or pid in husks:
             pids.append(pid)
     for pid in pids:
         try:
@@ -2845,9 +2961,9 @@ def main():
         known = set((load(REG_PATH, {}).get("sessions") or {}).keys())
         pids = []
         for pid, args in ps_lines():
-            if "--remote-control" not in args:
+            if not is_rc_args(args):
                 continue
-            m = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+            m = RESUME_RE.search(args)
             if (m and m.group(1) in known) or new_session_uuid(args):
                 pids.append(int(pid))
         for pid in pids:
@@ -3114,7 +3230,8 @@ def account_policy():
     signal.alarm(300)
     try:
         import rc_accounts
-        rc_accounts.tick(log=log, notify=notify)
+        if not CFG.DEFAULT_PROVIDER:      # no Claude accounts to watch without a subscription
+            rc_accounts.tick(log=log, notify=notify)
     except Exception as exc:
         log(f"accounts: policy pass failed: {exc!r}"[:300])
 

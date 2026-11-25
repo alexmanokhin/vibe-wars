@@ -2837,6 +2837,10 @@ def main():
         return
     if edit_registry(argv):
         return
+    if "--stop-sessions" in argv:
+        # uninstall: stop every session the panel or the guardian started
+        print(f"stopped {kill_restored()} session(s)")
+        return
     if "--status" not in argv and not take_lock():
         log("another pass is still running — skipping this cycle")
         return

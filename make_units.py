@@ -137,8 +137,12 @@ def units(args, cfg):
 
 def print_uninstall():
     names = [unit(n, "timer") for n in TIMED] + [unit(n) for n in SERVICES]
-    print("# stop and remove every %s unit:" % NAME)
-    print("systemctl --user disable --now %s 2>/dev/null" % " ".join(names))
+    udir = os.path.join(HOME, ".config/systemd/user")
+    names = [n for n in names if os.path.exists(os.path.join(udir, n))]
+    print("# stop every installed %s unit, then the sessions the panel started:" % NAME)
+    for n in names:
+        print("systemctl --user disable --now %s" % n)
+    print("%s %s --stop-sessions" % (PY, os.path.join(HERE, "rc_guardian.py")))
     print("rm -f ~/.config/systemd/user/%s-*.service ~/.config/systemd/user/%s-*.timer"
           % (NAME, NAME))
     print("systemctl --user daemon-reload")

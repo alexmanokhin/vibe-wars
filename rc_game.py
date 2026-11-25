@@ -1355,6 +1355,12 @@ def api(since=0, fleet=None, snap=None):
                      if os.path.exists(G.CLAUDE) else [])
     # other models behind the same claude (rc_providers), only those with a key
     for p in ((snap.get("meta") or {}).get("providers") or []):
+        if p["id"] == "vibe":
+            # Vibe keeps a session's model on resume, so it is chosen here, at launch
+            import rc_vibe
+            for alias, m in rc_vibe.MODELS.items():
+                out["models"].append(["provider:vibe:" + alias, "Mistral Vibe (%s)" % m["display"]])
+            continue
         out["models"].append(["provider:" + p["id"], "%s (%s)" % (p["label"], p["model"])])
     out["efforts"] = [""] + list(C.EFFORTS)
     recent = sorted((r for r in rows if r.get("live")), key=lambda r: -(r.get("la_ts") or 0))

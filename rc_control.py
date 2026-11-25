@@ -5879,8 +5879,11 @@ def act_new(target, wait_link=True):
     provider = (target.get("provider") or "").strip() or None
     if not provider and not model and CFG.DEFAULT_PROVIDER:
         provider = CFG.DEFAULT_PROVIDER
+    vmodel = None
     if model and model.startswith("provider:"):   # HQ's model list carries providers too
         provider, model = model[len("provider:"):], None
+        if provider.startswith("vibe:"):          # provider:vibe:<model alias>
+            provider, vmodel = "vibe", provider[len("vibe:"):]
     if provider == "claude":
         provider = None
     if provider == "codex":
@@ -5929,7 +5932,7 @@ def act_new(target, wait_link=True):
     # a fresh install: Claude creates the project folder only on the first session
     os.makedirs(G.PROJ, exist_ok=True)
     before = set(os.listdir(G.PROJ))
-    logf, fifo = G.launch_new(name, key, model, effort, provider)
+    logf, fifo = G.launch_new(name, key, vmodel or model, effort, provider)
 
     # uuid узнаём по появившемуся транскрипту: до первого промпта Claude его не
     # создаёт, поэтому ждём, а не спрашиваем.
@@ -5948,7 +5951,7 @@ def act_new(target, wait_link=True):
         vhome = None
         if provider == "vibe":
             import rc_providers
-            vhome = rc_providers.vibe_home()
+            vhome = rc_providers.vibe_home(vmodel)
         seen_work = False
         for _ in range(60):
             time.sleep(1.0)
@@ -6032,6 +6035,8 @@ def act_new(target, wait_link=True):
                 rec["effort"] = effort
             if provider:
                 rec["provider"] = provider
+            if vmodel:
+                rec["model"] = vmodel
             if provider in ("codex", "vibe") and rollout:
                 rec["rollout"] = rollout
             if not rec.get("prompt"):

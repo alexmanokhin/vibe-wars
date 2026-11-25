@@ -1560,7 +1560,7 @@ def launch_new(name, key, model=None, effort=None, provider=None):
         # без --resume диалога возобновления нет — и ответа «1» тоже
         fh.write(wrapper_text(
             fifo, logf,
-            other_cmd(provider) if provider in ("codex", "vibe") else
+            other_cmd(provider, None, model, effort) if provider in ("codex", "vibe") else
             f"{shlex.quote(claude_exec())}{opts} --remote-control {shlex.quote(name)}",
             answer=False, env_file=env_file))
     os.chmod(sh_path, 0o755)

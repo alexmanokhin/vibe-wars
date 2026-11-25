@@ -4260,11 +4260,12 @@ def row_head_html(r, devs=None, cur=None):
             mch = [("", "Codex default")] + list(rc_codex.models())
             ech = [("", "default effort")] + [(e, e) for e in rc_codex.EFFORT_CHOICES]
         else:
-            import rc_vibe
-            mch = [("", "Vibe default")] + [(a, m["display"]) for a, m in rc_vibe.MODELS.items()]
-            ech = None
-        opts = [opt_select(r["short"], "model", r.get("model"), mch,
-                           "default", r.get("prov_model") or "")]
+            # Vibe keeps a session's model on resume: show it, chosen at launch
+            mch = ech = None
+        opts = ([opt_select(r["short"], "model", r.get("model"), mch,
+                            "default", r.get("prov_model") or "")] if mch else
+                ['<select class="rowopt" disabled title="Mistral Vibe keeps the model it was launched with">'
+                 '<option>%s</option></select>' % esc("Mistral Vibe · " + (r.get("prov_model") or ""))])
         if ech:
             opts.append(opt_select(r["short"], "effort", r.get("effort"), ech,
                                    "default effort", ""))

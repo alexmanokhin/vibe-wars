@@ -26,6 +26,10 @@ Run and check each; stop and tell the user exactly what to install if one fails.
   folder that is not the home folder prints `ok` (not `Not logged in`). If not
   signed in, ASK the user to run `claude` in a terminal and sign in with their
   paid Claude subscription, then continue.
+- DeepSeek mode (no Claude subscription): if `echo "$ANTHROPIC_BASE_URL"`
+  contains `deepseek`, this Claude Code runs on DeepSeek. Then the sign-in
+  check above passes through DeepSeek, and you do the "DeepSeek" section
+  below instead of asking for a Claude subscription.
 - Tailscale (only for phone access): `tailscale status` (macOS app CLI:
   `/Applications/Tailscale.app/Contents/MacOS/Tailscale status`). If missing,
   phone access is skipped; everything else still works.
@@ -96,6 +100,36 @@ them is the point of this step (do not make them run a command for it). Tell
 them to open it once in the browser on this computer; the browser then
 remembers the token. Then tell them: in the panel, the HQ link (or `/play`)
 opens the game view; RECRUIT starts a new Claude session.
+
+## DeepSeek (other models)
+
+Sessions can run on DeepSeek instead of Claude: the same Claude Code, pointed
+at DeepSeek's Anthropic-compatible API. Two cases:
+
+- **No Claude subscription** (DeepSeek mode above, or the user asks to use
+  only DeepSeek): every session runs on DeepSeek. Add
+  `--default-provider deepseek` to the step 4a or 4b command.
+- **Claude subscription plus DeepSeek** (the user asks to add DeepSeek): Claude
+  stays the default; DeepSeek appears in the model list of RECRUIT.
+
+Either way:
+
+1. The key: in DeepSeek mode it is already in the environment
+   (`$ANTHROPIC_AUTH_TOKEN`); otherwise ASK the user for a DeepSeek API key
+   (platform.deepseek.com, API keys; the account needs a few dollars of
+   balance).
+2. Check it: `curl -s https://api.deepseek.com/user/balance -H "Authorization: Bearer <key>"`
+   must show `"is_available":true`. If false, tell the user to top up the
+   DeepSeek balance first.
+3. Write `~/.vibe-wars/providers/keys.env` (folder mode 700, file mode 600):
+   `DEEPSEEK_API_KEY=<key>`.
+4. Install (or re-run step 4a/4b with the same settings plus
+   `--default-provider deepseek` when there is no Claude subscription) and
+   restart the panel as in "Updating".
+5. Verify: in HQ, RECRUIT shows "DeepSeek (deepseek-v4-pro)" in the model list
+   (selected by default in DeepSeek mode). Tell the user that DeepSeek sessions
+   have no link in the Claude app; they live in the panel, on the phone through
+   Tailscale and in the Telegram bot.
 
 ## 6. Phone access through Tailscale (optional)
 

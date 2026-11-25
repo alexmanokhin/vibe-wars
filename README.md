@@ -10,7 +10,8 @@ Not affiliated with Anthropic.
 ## Requirements
 
 - A Mac (macOS 13 or newer) or a Linux machine that stays on while you work.
-- Claude Code installed and signed in with a paid Claude subscription (Pro or Max).
+- Claude Code installed and signed in with a paid Claude subscription (Pro or Max),
+  or, without a subscription, a DeepSeek API key with a few dollars of balance.
 - Python 3.9+ (on a Mac: the Command Line Tools, `xcode-select --install`) and git.
 - Tailscale installed and signed in on the computer and on the phone (same account),
   only if you want to open the dashboard from the phone.
@@ -32,6 +33,16 @@ Not affiliated with Anthropic.
    ```
    Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
    ```
+
+No Claude subscription? Use DeepSeek: in step 1 start Claude Code with your
+DeepSeek key instead (key from platform.deepseek.com), then paste the same line:
+
+```
+mkdir -p ~/rc-work && cd ~/rc-work && ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic ANTHROPIC_AUTH_TOKEN=<your DeepSeek key> ANTHROPIC_MODEL=deepseek-v4-pro claude
+```
+
+Already on Claude and want DeepSeek as a second model? Tell Claude Code:
+`Add DeepSeek to Vibe Wars (follow ~/vibe-wars/INSTALL.md, "DeepSeek")`.
 
 Claude checks the prerequisites, asks only what it must, installs the
 background services (launchd on macOS, systemd on Linux), starts them and
@@ -93,7 +104,8 @@ v0.1. Many code comments are still in Russian.
 ## Что нужно
 
 - Mac (macOS 13+) или Linux-машина, которая включена, пока вы работаете.
-- Claude Code, вход с платной подпиской Claude (Pro или Max).
+- Claude Code, вход с платной подпиской Claude (Pro или Max),
+  или, без подписки, ключ DeepSeek API с балансом в несколько долларов.
 - Python 3.9+ (на Mac: Command Line Tools, `xcode-select --install`) и git.
 - Tailscale на компьютере и на телефоне под одним аккаунтом, если нужен доступ с телефона.
 - По желанию: Telegram для алертов и управления (см. ниже).
@@ -114,6 +126,16 @@ v0.1. Many code comments are still in Russian.
    ```
    Install Vibe Wars for me: https://github.com/alexmanokhin/vibe-wars (follow its INSTALL.md)
    ```
+
+Нет подписки Claude? Используйте DeepSeek: на шаге 1 запустите Claude Code со
+своим ключом DeepSeek (ключ на platform.deepseek.com), затем вставьте ту же строку:
+
+```
+mkdir -p ~/rc-work && cd ~/rc-work && ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic ANTHROPIC_AUTH_TOKEN=<ваш ключ DeepSeek> ANTHROPIC_MODEL=deepseek-v4-pro claude
+```
+
+Уже на Claude и хотите DeepSeek второй моделью? Скажите Claude Code:
+`Add DeepSeek to Vibe Wars (follow ~/vibe-wars/INSTALL.md, "DeepSeek")`.
 
 Claude проверит требования, задаст только нужные вопросы, установит фоновые
 службы (launchd на Mac, systemd на Linux), запустит их и покажет адрес.

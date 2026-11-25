@@ -93,6 +93,8 @@ def units(args, cfg):
         d["RC_MAX_LIVE"] = str(args.max_live)
     if args.state_dir:
         d["RC_STATE_DIR"] = cfg.STATE_DIR
+    if args.default_provider:
+        d["RC_DEFAULT_PROVIDER"] = args.default_provider
     env = env_lines(d)
 
     out = {}
@@ -154,6 +156,8 @@ def main():
     ap.add_argument("--bind", default="127.0.0.1",
                     help="panel listen address (default 127.0.0.1)")
     ap.add_argument("--port", type=int, default=8788)
+    ap.add_argument("--default-provider", default="",
+                    help="no Claude subscription here: run sessions on this provider (deepseek)")
     ap.add_argument("--max-live", type=int, default=0,
                     help="cap on live sessions; without it the code default applies")
     ap.add_argument("--workdir", default="",

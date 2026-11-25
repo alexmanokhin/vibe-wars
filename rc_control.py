@@ -453,6 +453,7 @@ def snapshot():
             "live": is_live,
             "pid": _pid,
             "link": r.get("app_session") or "",
+            "provider": r.get("provider") or "",
             "busy_age": age,
             # Статус с экрана TUI: он говорит и там, где транскрипт молчит.
             "tui": _tui,
@@ -481,7 +482,13 @@ def snapshot():
         load1 = os.getloadavg()[0]
     except OSError:
         load1 = -1.0
+    try:
+        import rc_providers
+        providers = rc_providers.available()
+    except Exception:
+        providers = []
     meta = {
+        "providers": providers,
         "live_restored": len(live),
         "live_app": len(app),
         "live_total": len(live) + len(app),
@@ -600,6 +607,10 @@ def usage(force=False):
         pass
 
     out = {"ts": time.time()}
+    if CFG.DEFAULT_PROVIDER:
+        # no Claude subscription on this computer: there are no Claude limits
+        out["error"] = "no Claude subscription (sessions run on %s)" % CFG.DEFAULT_PROVIDER
+        return out
     try:
         try:
             os.makedirs(USAGE_DIR, exist_ok=True)
@@ -2417,6 +2428,26 @@ def _sum_source(path, size):
     return "\n".join(out[-30:])[:10000]
 
 
+def helper_run(prompt, model, timeout):
+    """One `claude -p` for a background helper (titles, voice fixes, routing).
+    Without a Claude subscription here (CFG.DEFAULT_PROVIDER) it runs on that
+    provider's fast model instead."""
+    env = None
+    if CFG.DEFAULT_PROVIDER:
+        import rc_providers
+        p = rc_providers.PROVIDERS.get(CFG.DEFAULT_PROVIDER) or {}
+        env = dict(os.environ)
+        with open(rc_providers.env_file(CFG.DEFAULT_PROVIDER)) as fh:
+            for line in fh:
+                k, _, v = line.strip().partition("=")
+                if k:
+                    env[k] = v.strip("'")
+        model = p.get("fast") or model
+    return subprocess.run([CLAUDE_BIN, "-p", prompt, "--model", model] + NO_USER_SETTINGS,
+                          capture_output=True, text=True, errors="replace",
+                          timeout=timeout, cwd=SUM_DIR, env=env)
+
+
 def summary_for(path):
     st = os.stat(path)
     src = _sum_source(path, st.st_size)
@@ -2427,11 +2458,8 @@ def summary_for(path):
     except OSError:
         pass
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", SUM_PROMPT + "<conversation>\n" + src
-                            + "\n</conversation>",
-                            "--model", SUM_MODEL] + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=180, cwd=SUM_DIR)
+        r = helper_run(SUM_PROMPT + "<conversation>\n" + src + "\n</conversation>",
+                       SUM_MODEL, 180)
     except Exception:
         return None
     # ⛔ Не схлопывать весь stdout в одну строку. На мини стоит глобальный
@@ -4989,10 +5017,7 @@ def _voice_polish(text):
     try:
         # --effort low тут пробовали: на замере вышло 34 с против 26 — не
         # быстрее, а медленнее. Оставлен эффорт по умолчанию.
-        r = subprocess.run([CLAUDE_BIN, "-p", VOICE_FIX_PROMPT + text,
-                            "--model", SUM_MODEL] + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=90, cwd=SUM_DIR)
+        r = helper_run(VOICE_FIX_PROMPT + text, SUM_MODEL, 90)
     except Exception:
         return text
     # Модель иногда обрамляет ответ разделителем или кавычками — в текст
@@ -5235,10 +5260,7 @@ def _route(text):
     except OSError:
         pass
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", prompt, "--model", SUM_MODEL]
-                           + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=120, cwd=SUM_DIR)
+        r = helper_run(prompt, SUM_MODEL, 120)
     except Exception:
         return None
     raw = (r.stdout or "").strip()
@@ -5404,10 +5426,7 @@ def continue_pick(text):
         pass
     t0 = time.time()
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", prompt, "--model", CONT_MODEL]
-                           + NO_USER_SETTINGS,
-                           capture_output=True, text=True, errors="replace",
-                           timeout=150, cwd=SUM_DIR)
+        r = helper_run(prompt, CONT_MODEL, 150)
     except Exception as exc:
         raise ValueError("could not ask the model which session fits (%s)" % exc)
     raw = (r.stdout or "").strip()
@@ -5677,6 +5696,25 @@ def act_new(target, wait_link=True):
     # spinning after the session was already working (10-16)
     if target.get("nolink"):
         wait_link = False
+    provider = (target.get("provider") or "").strip() or None
+    if not provider and not model and CFG.DEFAULT_PROVIDER:
+        provider = CFG.DEFAULT_PROVIDER
+    if model and model.startswith("provider:"):   # HQ's model list carries providers too
+        provider, model = model[len("provider:"):], None
+    if provider == "claude":
+        provider = None
+    if provider:
+        # another model behind the same claude (rc_providers): its env picks the
+        # model; it has no Remote Control, so there is no link to wait for
+        import rc_providers
+        if provider not in rc_providers.PROVIDERS:
+            raise ValueError("unknown provider %r" % provider[:20])
+        ok, bal = rc_providers.balance(provider)
+        if ok is False:
+            raise ValueError("%s balance is empty (%s): top it up first"
+                             % (rc_providers.label(provider), bal))
+        model = effort = None
+        wait_link = False
     if model and model not in MODELS:
         raise ValueError("invalid model %r" % model[:20])
     if effort and effort not in EFFORTS:
@@ -5694,7 +5732,7 @@ def act_new(target, wait_link=True):
     # a fresh install: Claude creates the project folder only on the first session
     os.makedirs(G.PROJ, exist_ok=True)
     before = set(os.listdir(G.PROJ))
-    logf, fifo = G.launch_new(name, key, model, effort)
+    logf, fifo = G.launch_new(name, key, model, effort, provider)
 
     # uuid узнаём по появившемуся транскрипту: до первого промпта Claude его не
     # создаёт, поэтому ждём, а не спрашиваем.
@@ -5703,6 +5741,22 @@ def act_new(target, wait_link=True):
     # завелась с нулём сообщений). Транскрипт же создаётся при старте, ещё до
     # любого промпта, — вот он и служит сигналом «загрузился».
     uuid = None
+    typed = False
+    if provider:
+        # On another model (an API token in the env) Claude Code writes the
+        # transcript at the first prompt, not at start: wait for the input box
+        # on its screen, type, then look for the transcript.
+        for _ in range(40):
+            time.sleep(1.0)
+            try:
+                with open(logf, "rb") as fh:
+                    if "\u276f".encode() in fh.read():
+                        break
+            except OSError:
+                pass
+        time.sleep(2.0)
+        _type_into(fifo, text, logf)
+        typed = True
     for _ in range(30):
         time.sleep(1.0)
         try:
@@ -5749,6 +5803,8 @@ def act_new(target, wait_link=True):
                 rec["model"] = model
             if effort:
                 rec["effort"] = effort
+            if provider:
+                rec["provider"] = provider
             if not rec.get("prompt"):
                 # имя у нас уже есть — census вывел бы «session xxxxxxxx»,
                 # пока первая реплика не долетит до диска
@@ -5769,9 +5825,10 @@ def act_new(target, wait_link=True):
         except Exception:
             pass        # не дались — гардиан подберёт её своим проходом
 
-    time.sleep(2.0)      # дать TUI дорисовать первый экран
     try:
-        _type_into(fifo, text, logf)
+        if not typed:
+            time.sleep(2.0)      # дать TUI дорисовать первый экран
+            _type_into(fifo, text, logf)
     except OSError as exc:
         return ("session %s launched, but the first prompt did not land (%s) — "
                 "write to it from the chat" % (uuid[:8] if uuid else key, exc.strerror or exc))
@@ -5790,6 +5847,9 @@ def act_new(target, wait_link=True):
     who = uuid[:8] if uuid else key
     if link:
         return "new session %s → https://claude.ai/code/%s" % (who, link)
+    if provider:
+        import rc_providers
+        return "new session %s launched on %s" % (who, rc_providers.label(provider))
     return "new session %s launched, the link appears within a minute" % who
 
 

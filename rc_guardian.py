@@ -471,6 +471,9 @@ def husk_pids():
     conn = connected_pids()
     if not conn:                     # lsof unavailable — assume nothing is a husk
         return []
+    # a session on another model (rc_providers) has no relay at all and no
+    # socket while idle: by this test it would always look like a husk
+    other = provider_uuids()
     out = []
     for pid, etime, args in ps_lines_etime():
         if "--remote-control" not in args:
@@ -480,6 +483,9 @@ def husk_pids():
         if not args.lstrip().startswith(CLAUDE):   # skip the `script` wrapper
             continue
         if pid in conn or etime < HUSK_GRACE_S:
+            continue
+        m = re.search(r"--resume\s+([0-9a-f-]{36})", args)
+        if m and m.group(1) in other:
             continue
         out.append(pid)
     return out
@@ -1279,7 +1285,7 @@ def claude_exec():
         return CLAUDE
 
 
-def wrapper_text(fifo, logf, argv, answer):
+def wrapper_text(fifo, logf, argv, answer, env_file=None):
     """Текст обёртки одной сессии: держит канал ввода, пишет pty в лог,
     умирает вместе с claude.
 
@@ -1310,8 +1316,11 @@ def wrapper_text(fifo, logf, argv, answer):
     q = shlex.quote(fifo)
     ino = "stat -c %i" if IS_LINUX else "stat -f %i"
     lines = ["#!/bin/bash",
-             f"cd {shlex.quote(WORKDIR)}",
-             f"exec 3<>{q}",
+             f"cd {shlex.quote(WORKDIR)}"]
+    if env_file:
+        # another model behind the same claude (rc_providers): its env, never argv
+        lines.append(f"set -a; . {shlex.quote(env_file)}; set +a")
+    lines += [f"exec 3<>{q}",
              f"ino=$({ino} {q} 2>/dev/null)"]
     if answer:
         lines.append("printf '1\\n' >&3")
@@ -1354,9 +1363,12 @@ def launch_opts(uuid, rec, digests=None):
     Every assistant record carries message.model and effort; the digest keeps
     the latest of both per session.
     """
+    if rec.get("provider"):
+        # the provider's env names the model; Claude ids and efforts do not apply
+        return None, None, rec["provider"]
     model, effort = rec.get("model"), rec.get("effort")
     if model and effort:
-        return model, effort
+        return model, effort, None
     if digests is None:
         digests = load(DIGEST_PATH, {})
     d = digests.get(uuid) if isinstance(digests, dict) else None
@@ -1368,10 +1380,28 @@ def launch_opts(uuid, rec, digests=None):
         model = seen_model
     if not effort and seen_effort in EFFORT_VALUES:
         effort = seen_effort
-    return model or None, effort or None
+    return model or None, effort or None, None
 
 
-def launch(uuid, name, model=None, effort=None):
+def provider_env(provider):
+    """Env file for a session on another model (rc_providers), or None for Claude."""
+    if not provider:
+        return None
+    import rc_providers
+    return rc_providers.env_file(provider)
+
+
+def provider_uuids():
+    """uuids of registry sessions that run on another model (rc_providers)."""
+    try:
+        reg = load(REG_PATH, {})
+    except Exception:
+        return set()
+    return {u for u, r in (reg.get("sessions") or {}).items()
+            if isinstance(r, dict) and r.get("provider")}
+
+
+def launch(uuid, name, model=None, effort=None, provider=None):
     """Start one restored session; returns the pty log path to read the link from.
 
     model/effort приходят из записи в реестре, а не из вызова, поэтому выбор
@@ -1387,6 +1417,7 @@ def launch(uuid, name, model=None, effort=None):
         opts += " --model " + shlex.quote(str(model))
     if effort:
         opts += " --effort " + shlex.quote(str(effort))
+    env_file = provider_env(provider)
     slug = re.sub(r"[^A-Za-z0-9]+", "-", name)[:24].strip("-") or uuid[:8]
     logf = f"/tmp/rc-restore-{uuid[:8]}-{slug}.log"
     # Written to a file rather than inlined: session names are raw user prompts
@@ -1405,7 +1436,7 @@ def launch(uuid, name, model=None, effort=None):
             fifo, logf,
             f"{shlex.quote(claude_exec())} --resume {shlex.quote(uuid)}{opts} "
             f"--remote-control {shlex.quote(name)}",
-            answer=True))
+            answer=True, env_file=env_file))
     os.chmod(sh_path, 0o755)
     # setsid + (на Linux) свой scope — см. spawn_detached.
     try:
@@ -1415,7 +1446,7 @@ def launch(uuid, name, model=None, effort=None):
     return logf
 
 
-def launch_new(name, key, model=None, effort=None):
+def launch_new(name, key, model=None, effort=None, provider=None):
     """Поднять НОВУЮ сессию — без --resume, с нуля.
 
     uuid появится только когда Claude создаст транскрипт, поэтому канал ввода
@@ -1428,6 +1459,7 @@ def launch_new(name, key, model=None, effort=None):
         opts += " --model " + shlex.quote(str(model))
     if effort:
         opts += " --effort " + shlex.quote(str(effort))
+    env_file = provider_env(provider)
     logf = f"/tmp/rc-new-{key}.log"
     sh_path = f"/tmp/rc-launch-{key}.sh"
     fifo = f"/tmp/rc-in-{key}.fifo"
@@ -1441,7 +1473,7 @@ def launch_new(name, key, model=None, effort=None):
         fh.write(wrapper_text(
             fifo, logf,
             f"{shlex.quote(claude_exec())}{opts} --remote-control {shlex.quote(name)}",
-            answer=False))
+            answer=False, env_file=env_file))
     os.chmod(sh_path, 0o755)
     try:
         spawn_detached(sh_path)
@@ -3114,7 +3146,8 @@ def account_policy():
     signal.alarm(300)
     try:
         import rc_accounts
-        rc_accounts.tick(log=log, notify=notify)
+        if not CFG.DEFAULT_PROVIDER:      # no Claude accounts to watch without a subscription
+            rc_accounts.tick(log=log, notify=notify)
     except Exception as exc:
         log(f"accounts: policy pass failed: {exc!r}"[:300])
 

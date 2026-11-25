@@ -13,6 +13,10 @@ import sys
 
 # Working project name: rename here (and in make_plists.py / make_units.py).
 NAME = "vibe-wars"
+# Set when this computer has no Claude subscription: new sessions, titles and
+# voice fixes run on that provider (rc_providers), and the Claude limit and
+# account checks stay off. Empty = Claude, with providers as an option.
+DEFAULT_PROVIDER = (os.environ.get("RC_DEFAULT_PROVIDER") or "").strip()
 
 HOME = os.path.expanduser("~")
 # Where this code lives (the cloned repo). Units run the scripts from here.

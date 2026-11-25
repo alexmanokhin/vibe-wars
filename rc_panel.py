@@ -2901,8 +2901,8 @@ function netShow(){
   if(state!==NET_SENT){ NET_SENT=state; gameEmit('net', {state:state}); }
   el.classList.toggle('on', bad);
   if(bad) el.textContent = NET.retrying
-    ? 'Weak connection to the mini. Your message is safe: it is confirmed and retried automatically, do not send it again.'
-    : 'Weak connection to the mini: requests are timing out. Sends still get through, they are confirmed and retried automatically.';
+    ? 'Weak connection to the computer. Your message is safe: it is confirmed and retried automatically, do not send it again.'
+    : 'Weak connection to the computer: requests are timing out. Sends still get through, they are confirmed and retried automatically.';
 }
 setInterval(netShow, 5000);
 async function fetchT(url, opts, ms){
@@ -2982,7 +2982,7 @@ async function sayReliably(sent, payload, ent, nonce, posted){
     delete OUTBOX_LIVE[nonce];
     if(rough){ NET.retrying=Math.max(0, NET.retrying-1); netShow(); }
   }
-  throw (last || new Error('no answer from the mini'));
+  throw (last || new Error('no answer from the computer'));
 }
 async function sendText(payload, sent, restore, ent, nonce, posted){
   const ta=document.getElementById('drtext');
@@ -3021,7 +3021,7 @@ async function sendText(payload, sent, restore, ent, nonce, posted){
     sendDiag(sent, 'network: '+e);
     if(ent){ ent.stuck=true; ent.status=''; }
     if(TX_CUR===sent) txDraw(sent);
-    flash('✗ no connection to the mini for 10 minutes — the message waits and goes out by itself when the link is back');
+    flash('✗ no connection to the computer for 10 minutes — the message waits and goes out by itself when the link is back');
     setTimeout(outboxFlush, 20000);
   }
 }
@@ -4785,7 +4785,7 @@ its conversation, context and controls appear here.</div></div>
 <textarea id="drtext" rows="1" placeholder="Message this session — Enter to send, Shift+Enter for a new line"></textarea>
 <input type="file" id="drfile" multiple style="display:none" onchange="uploadFile(this)">
 <button class="iconbtn" onclick="document.getElementById('drfile').click()"
- title="Attach a file — it lands on the mini and the path goes into the message">&#128206;</button>
+ title="Attach a file — it is saved on the computer and its path goes into the message">&#128206;</button>
 <button id="drmic" class="iconbtn" onclick="toggleMic()" title="Voice input">&#127908;</button>
 <button id="drstop" class="iconbtn stopbtn" onclick="stopTurn()" style="display:none"
  title="Stop the current step — the same as Esc in the terminal">&#9632;</button>
@@ -4801,7 +4801,7 @@ its conversation, context and controls appear here.</div></div>
 <div id="accmodal"><h2>Account<span class="gcount">%s</span></h2>
 <p class="ctx">The guardian detects an account switch on its own and migrates
 sessions without any button. These are for when it missed one — say the account
-was switched while the mini was asleep.</p>
+was switched while the computer was asleep.</p>
 <div class="acts">
 <button onclick="report()">Check migration readiness</button>
 <button class="danger" onclick="migrate()">Migrate sessions to this account</button>

@@ -2281,7 +2281,7 @@ def digest_refresher(every=DIGEST_EVERY):
 
 SUM_CACHE = CFG.state("rc-summary.json")
 SUM_DIR = CFG.state("rc-sum")
-SUM_V = 2
+SUM_V = 3
 SUM_EVERY = 150           # пауза между проходами
 SUM_BATCH = 2             # сессий за проход — это платные вызовы, не чтение
 # ⛔ Было 12000, и короткий обмен репликами порога не брал: человек написал,
@@ -2385,10 +2385,13 @@ def summary_dirty_sweep():
 NO_USER_SETTINGS = ["--setting-sources", "project"]
 
 SUM_PROMPT = (
-    "Below is the tail of a working conversation between a person and an "
-    "assistant. Reply with EXACTLY one line, at most 90 characters, in the "
-    "language the person writes in: what this session is working on and where "
-    "it stopped. No quotes, no preamble, no prefix: only the line itself.\n\n")
+    "You write a one-line status for a list of sessions. Between the "
+    "<conversation> tags is the tail of a conversation between a person and "
+    "Claude Code. Reply with exactly one line, at most 90 characters: what "
+    "this session is working on and where it stopped. Write in English, "
+    "unless the person writes in another language: then use that language. "
+    "Describe only the conversation: use no tools, do not mention this "
+    "request or any folder. No quotes, no preamble, no prefix.\n\n")
 
 
 def summaries():
@@ -2424,7 +2427,8 @@ def summary_for(path):
     except OSError:
         pass
     try:
-        r = subprocess.run([CLAUDE_BIN, "-p", SUM_PROMPT + src,
+        r = subprocess.run([CLAUDE_BIN, "-p", SUM_PROMPT + "<conversation>\n" + src
+                            + "\n</conversation>",
                             "--model", SUM_MODEL] + NO_USER_SETTINGS,
                            capture_output=True, text=True, errors="replace",
                            timeout=180, cwd=SUM_DIR)

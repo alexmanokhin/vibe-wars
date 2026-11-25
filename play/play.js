@@ -659,7 +659,7 @@ function devq(sep) { return HQ_DEV ? sep + 'dev=' + encodeURIComponent(HQ_DEV) :
 function devName(id) {
   const k = id === undefined ? (HQ_DEV || 'local') : (id || 'local');
   const d = ((G && G.devices) || []).find(x => x.id === k);
-  return d ? d.name : (k === 'local' ? 'this Mac' : k);
+  return d ? d.name : (k === 'local' ? 'this computer' : k);
 }
 async function act(action, target, extra) {
   try {
@@ -2028,7 +2028,7 @@ function bayFilesDraw() {
 function noFilesRemote() {
   if (!HQ_DEV) return false;
   SFX.play('error');
-  toast({ i: 'warning-box', t: 'Files stay on this Mac', x: 'Uploads land on the hub, not on ' + devName() + '. Switch to this Mac to attach files.', cls: 'bad', ms: 9000 });
+  toast({ i: 'warning-box', t: 'Files stay on this computer', x: 'Uploads land on the hub, not on ' + devName() + '. Switch to this computer to attach files.', cls: 'bad', ms: 9000 });
   return true;
 }
 function bayUpload(files) {
@@ -2368,7 +2368,7 @@ function bayModeDraw() {
     const on = b.dataset.m === m;
     b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
     b.disabled = b.dataset.m === 'continue' && !!HQ_DEV;
-    if (b.disabled) b.title = 'Only on this Mac for now';
+    if (b.disabled) b.title = 'Only on this computer for now';
   });
   $('#bay-kick').textContent = m === 'continue' ? 'LAUNCH BAY · CONTINUE THE MATCH' : 'LAUNCH BAY · NEW AGENT';
   $('#bay-go-t').textContent = m === 'continue' ? 'FIND & SEND' : 'LAUNCH';
@@ -3163,7 +3163,7 @@ let ACC_T = null, ACC_RUN = false, ACC_STEP = 0, ACC_NEW = null, ACC_KEEP = fals
 // 20.11: a «keep» sign-in only saves the account for auto-switch, this Mac stays put
 function accFlowText(keep) {
   ACC_KEEP = !!keep;
-  $('#acc-f3 span').textContent = keep ? 'Saved: the account goes on the auto-switch list, this Mac stays on ' + (accName() || 'its account') + ' and nothing restarts'
+  $('#acc-f3 span').textContent = keep ? 'Saved: the account goes on the auto-switch list, this computer stays on ' + (accName() || 'its account') + ' and nothing restarts'
     : 'Switch: the guardian relaunches the live agents on the new account by itself, it takes a few minutes';
 }
 // right after a switch the board snapshot can lag a few seconds behind /api/auth:
@@ -3214,7 +3214,7 @@ async function accPoll() {
   }
   if (ACC_KEEP && s.added) {
     accStop(); ACC_RUN = false; accStep(4); LIMS_HTML = '';
-    accMsg('Saved: ' + s.added + '. When ' + (s.account || 'the active account') + ' runs out, this Mac can move there by itself. Nothing restarted.', 'good');
+    accMsg('Saved: ' + s.added + '. When ' + (s.account || 'the active account') + ' runs out, this computer can move there by itself. Nothing restarted.', 'good');
     SFX.play('level'); toast({ i: 'shield', t: 'Sign-in saved', x: s.added, cls: 'turn', ms: 9000 });
     accFlowText(false);
     return;
@@ -3255,7 +3255,7 @@ function accLims() {
       note = 'Resets ' + resTxt(a.week_resets) + '.';
     }
     if (!cur && a.ts) note += ' Last reading ' + new Date(a.ts * 1000).toLocaleString([], day) + '.';
-    if (cur) note += ' Every agent on this Mac runs on it now.';
+    if (cur) note += ' Every agent on this computer runs on it now.';
     if (a.empty_until) { tag = 'EMPTY'; lvl = 'hot'; note = 'Out of its limit until ' + new Date(a.empty_until * 1000).toLocaleString([], day) + '. ' + note; }
     const pct = wk == null ? 0 : (a.week_reset_passed ? 0 : wk);
     // 20.11 auto-switch (rc_accounts.py): a peer's older panel sends no `saved`, so nothing shows there
@@ -3283,7 +3283,7 @@ function accLims() {
   }).join('') : '<p class="sysp">No readings yet.</p>';
   const au = list.find(a => a.auto !== undefined);
   const ah = au ? '<div class="accauto' + (au.auto ? ' on' : '') + '"><div><b>AUTO-SWITCH ' + (au.auto ? 'ON' : 'OFF') + '</b><span>'
-      + (au.auto ? 'When the active account runs out, this Mac moves to the saved account with the most room, and agents the limit stopped carry on. With none saved, Telegram pings you every 10 min until you sign in.'
+      + (au.auto ? 'When the active account runs out, this computer moves to the saved account with the most room, and agents the limit stopped carry on. With none saved, Telegram pings you every 10 min until you sign in.'
         : 'A used-up limit only pings you in Telegram every 10 min; nothing switches by itself.')
       + '</span></div><button class="hb" data-auto="' + (au.auto ? '0' : '1') + '">' + (au.auto ? 'TURN OFF' : 'TURN ON') + '</button></div>' : '';
   if (h + ah === LIMS_HTML) return;
@@ -3291,7 +3291,7 @@ function accLims() {
 }
 // one tap to a saved account: no browser, no code
 function accSwitchNow(mail) {
-  confirmBox('Switch this Mac to ' + mail + ' now? Its sign-in is saved, so no browser is needed. Live agents are relaunched on it within a few minutes, and the ones the limit stopped are told to carry on.', 'SWITCH', async ok => {
+  confirmBox('Switch this computer to ' + mail + ' now? Its sign-in is saved, so no browser is needed. Live agents are relaunched on it within a few minutes, and the ones the limit stopped are told to carry on.', 'SWITCH', async ok => {
     if (!ok) return;
     accMsg('Switching to ' + mail + '…'); SFX.play('spool');
     const j = await act('acct_switch', { email: mail });
@@ -3323,7 +3323,7 @@ function showAcc(on) {
     const tr = devAuthTrouble(); $('#acc-warn').hidden = !tr; $('#acc-warn').textContent = tr;
     // 17.11: on another machine the box is about THAT machine's account
     $('#acc h2').textContent = HQ_DEV ? 'ACCOUNT · ' + devName().toUpperCase() : 'PILOT ACCOUNT';
-    $('#acc .acccur em').textContent = 'Every agent on ' + (HQ_DEV ? devName() : 'this Mac') + ' runs on it, and the 5H and WEEK power bars are its limits.';
+    $('#acc .acccur em').textContent = 'Every agent on ' + (HQ_DEV ? devName() : 'this computer') + ' runs on it, and the 5H and WEEK power bars are its limits.';
   }
   if (on) { accShow(); LIMS_HTML = ''; accLims(); $('#acc .hbox').scrollTop = 0; $('#accok').focus({ preventScroll: true }); if (!ACC_RUN) { accStep(0); accMsg(''); } accPoll(); }
   else if (!ACC_RUN) accStop();

@@ -235,6 +235,12 @@ Uninstall:
 
 - macOS: `for p in ~/Library/LaunchAgents/com.vibe-wars.*.plist; do launchctl bootout gui/$(id -u) "$p"; rm "$p"; done`,
   then `/usr/bin/python3 REPO/rc_guardian.py --stop-sessions` (stops the sessions the panel started).
-- Linux: `python3 make_units.py --uninstall` prints the commands; run them all.
-- Then `tailscale serve reset` (if used), remove `~/.vibe-wars` and REPO.
+- Linux: `python3 make_units.py --uninstall` prints the commands; run them all, in order
+  (they stop the units, then `rc_guardian.py --stop-sessions` stops the sessions the panel
+  started: it reads `~/.vibe-wars`, so run it before removing that folder).
+- Then `tailscale serve reset` (if used) and remove `~/.vibe-wars` and REPO. Mistral Vibe
+  leaves read-only folders in `~/.vibe-wars`, so make it writable first:
+  `chmod -R u+w ~/.vibe-wars && rm -r ~/.vibe-wars`.
+- The sessions' launch scripts and screen logs stay in /tmp (the logs hold conversation
+  text): `rm -f /tmp/rc-launch-*.sh /tmp/rc-restore-*.log /tmp/rc-new-*`.
   `loginctl disable-linger "$USER"` on Linux if nothing else needs it.

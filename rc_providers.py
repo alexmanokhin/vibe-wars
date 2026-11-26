@@ -66,6 +66,66 @@ def available():
             for pid, p in PROVIDERS.items() if key(pid) and not p.get("per_token")]
 
 
+def save_key(var, value):
+    """Put VAR=value into keys.env (mode 600), replacing an older line."""
+    if not re.match(r"^[A-Z0-9_]+$", var or ""):
+        raise ValueError("bad key name")
+    value = (value or "").strip()
+    if not value or re.search(r"[\s'\"\\]", value):
+        raise ValueError("the key looks wrong: paste it as one line")
+    os.makedirs(DIR, mode=0o700, exist_ok=True)
+    lines = []
+    try:
+        with open(KEYS) as fh:
+            lines = [l.rstrip("\n") for l in fh
+                     if not re.match(r"\s*(?:export\s+)?%s\s*=" % var, l)]
+    except OSError:
+        pass
+    lines.append("%s=%s" % (var, value))
+    tmp = KEYS + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    os.replace(tmp, KEYS)
+
+
+def check_key(provider, value):
+    """(ok, text): one cheap call with the pasted key before it is saved."""
+    import json
+    import urllib.error
+    import urllib.request
+    if provider == "vibe":
+        req = urllib.request.Request("https://api.mistral.ai/v1/models",
+                                     headers={"Authorization": "Bearer " + value})
+    elif provider in PROVIDERS:
+        p = PROVIDERS[provider]
+        body = json.dumps({"model": p["fast"], "max_tokens": 1,
+                           "messages": [{"role": "user", "content": "hi"}]}).encode()
+        req = urllib.request.Request(p["base_url"].rstrip("/") + "/v1/messages", data=body,
+                                     headers={"x-api-key": value, "Authorization": "Bearer " + value,
+                                              "anthropic-version": "2023-06-01",
+                                              "content-type": "application/json"})
+    else:
+        return False, "unknown provider"
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return 200 <= r.status < 300, "ok"
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return False, "the provider refused this key (%d)" % exc.code
+        return False, "the provider answered %d" % exc.code
+    except Exception as exc:  # noqa: BLE001
+        return False, "no answer from the provider: %s" % str(exc)[:80]
+
+
+def key_var(provider):
+    """The variable a pasted key is saved under."""
+    if provider == "vibe":
+        return VIBE_KEY_VARS[-1]
+    p = PROVIDERS.get(provider or "")
+    return p["key_var"] if p else ""
+
+
 def vibe_key():
     k = _keys()
     for v in VIBE_KEY_VARS:

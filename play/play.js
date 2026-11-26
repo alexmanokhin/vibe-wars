@@ -2003,22 +2003,170 @@ function bayShow(on) {
   $('#bay').hidden = !on;
   $('#chat').classList.toggle('behind', !!on);
   if (on) {
-    bayFillOpts(); bayFormShow(BAY_SEQ ? false : true);
+    bayFillOpts(true); bayFormShow(BAY_SEQ ? false : true);
     SPRITES.set($('#bay-ship'), { ship: true });
     if (!BAY_SEQ) { clearArrive(); $('#hangar').className = 'hangar'; SPRITES.set($('#bay-bot'), { sp: specFor('recruit-' + Math.floor(Date.now() / 60000), 1), st: 'happy' }); }
     else { const L = seqL(); if (L && Date.now() - SEQ_T0 > 3700) seqState(L, true); }
   }
 }
 function bayFormShow(form) { $('#bay-form').hidden = !form; $('#bay-seq').hidden = form; }
-function bayFillOpts() {
+// 26.11: pick the agent first (and connect it right here if it is
+// missing), then that agent's model; the bay opens on the last launch's choice,
+// which the server keeps (C.bay_catalog), so every device opens on the same one.
+function bayCat() { return (G && G.bay && G.bay.agents && G.bay.agents.length) ? G.bay : null; }
+function bayAgent(id) { const c = bayCat(); return c ? c.agents.find(a => a.id === id) || null : null; }
+const BAY_NEED = { install: 'not installed', login: 'sign in', key: 'connect' };
+function bayFillOpts(fresh) {
   if (!G) return;
-  const ms = $('#bay-model'), es = $('#bay-effort');
-  if (!ms.options.length) {
-    ms.innerHTML = (G.models || []).map(m => '<option value="' + esc(m[0]) + '">' + esc(m[1]) + '</option>').join('');
-    es.innerHTML = (G.efforts || []).map(e => '<option value="' + esc(e) + '">' + esc(e || 'default effort') + '</option>').join('');
-    ms.value = LS.get('bayModel', G.model_default || '');
-    es.value = LS.get('bayEffort', G.effort_default || '');
+  const ps = $('#bay-prov'), ms = $('#bay-model'), es = $('#bay-effort');
+  const cat = bayCat();
+  $('#bay-prov-l').hidden = !cat;
+  if (!cat) {
+    // a peer on an older panel: the one list of models, as before
+    $('#bay-conn').hidden = true; $('#bay-effort-l').hidden = false;
+    if (!ms.options.length || ps.options.length) {
+      ps.innerHTML = '';
+      ms.innerHTML = (G.models || []).map(m => '<option value="' + esc(m[0]) + '">' + esc(m[1]) + '</option>').join('');
+      es.innerHTML = (G.efforts || []).map(e => '<option value="' + esc(e) + '">' + esc(e || 'default effort') + '</option>').join('');
+      ms.value = LS.get('bayModel', G.model_default || '');
+      es.value = LS.get('bayEffort', G.effort_default || '');
+    }
+    bayGoSync();
+    return;
   }
+  const sig = cat.agents.map(a => a.id + ':' + a.state + ':' + a.models.length).join(',');
+  if (!fresh && ps.dataset.sig === sig) return;
+  const keep = fresh ? '' : ps.value;
+  ps.innerHTML = cat.agents.map(a => '<option value="' + esc(a.id) + '">' + esc(a.label + (a.state === 'ok' ? '' : ' (' + BAY_NEED[a.state] + ')')) + '</option>').join('');
+  ps.dataset.sig = sig;
+  ps.value = keep && bayAgent(keep) ? keep : cat.default;
+  bayAgentPick(!!keep);
+  if (fresh) BAY_PAIR = !!cat.pair;
+  bayExFill(fresh);
+  bayPairDraw();
+}
+function bayAgentPick(keepModel) {
+  const a = bayAgent($('#bay-prov').value);
+  if (!a) return;
+  const ms = $('#bay-model'), es = $('#bay-effort');
+  const m0 = ms.value, e0 = es.value;
+  ms.innerHTML = a.models.map(m => '<option value="' + esc(m[0]) + '">' + esc(m[1]) + '</option>').join('');
+  ms.disabled = a.models.length < 2;
+  ms.value = keepModel && a.models.some(m => m[0] === m0) ? m0 : (a.model_default || ((a.models[0] || [''])[0]));
+  es.innerHTML = a.efforts.map(e => '<option value="' + esc(e) + '">' + esc(e || 'default effort') + '</option>').join('');
+  $('#bay-effort-l').hidden = !a.efforts.length;
+  es.value = keepModel && a.efforts.indexOf(e0) >= 0 ? e0 : (a.effort_default || '');
+  bayConnDraw(a);
+}
+function bayGoSync() {
+  const a = bayCat() ? bayAgent($('#bay-prov').value) : null;
+  $('#bay-go').disabled = !!(a && a.state !== 'ok' && bayModeOf() !== 'continue');
+}
+let BAY_CX_T = null;
+function bayConnDraw(a) {
+  const box = $('#bay-conn');
+  clearTimeout(BAY_CX_T);
+  bayGoSync();
+  if (!a || a.state === 'ok') { box.hidden = true; box.innerHTML = ''; return; }
+  const b = (id, t) => '<button type="button" class="hb wide" id="' + id + '">' + esc(t) + '</button>';
+  let h = '<p><b>' + esc(a.label) + '</b> ';
+  if (a.state === 'install') {
+    h += 'is not installed on this computer. Install it in a terminal, or ask your agent to:</p><code class="bay-cmd">' + esc(a.install) + '</code>' + b('bay-recheck', 'CHECK AGAIN');
+  } else if (a.state === 'login' && a.id === 'codex') {
+    h += 'needs your ChatGPT sign-in: you get a link and a one-time code.</p>' + b('bay-cxgo', 'SIGN IN WITH CHATGPT') + '<div id="bay-cx"></div>';
+  } else if (a.state === 'login') {
+    h += 'needs your Claude sign-in.</p>' + b('bay-clgo', 'SIGN IN TO CLAUDE') + b('bay-recheck', 'CHECK AGAIN');
+  } else {
+    h += 'connects with your ' + esc(a.sub || 'plan') + ' key' + (a.key_url ? ' (<a href="' + esc(a.key_url) + '" target="_blank" rel="noopener">get it here</a>)' : '')
+      + '. One tiny request checks it, and it stays only on this computer.</p>'
+      + '<div class="bay-key"><input id="bay-key" type="password" autocomplete="off" spellcheck="false" placeholder="paste the key"><button type="button" class="go" id="bay-keygo">CONNECT</button></div>';
+  }
+  box.innerHTML = h; box.hidden = false;
+  const on = (id, f) => { const el = $('#' + id); if (el) el.onclick = f; };
+  on('bay-recheck', bayRecheck);
+  on('bay-clgo', () => { try { accShow(); } catch (e) {} });
+  on('bay-keygo', async () => {
+    const k = ($('#bay-key').value || '').trim();
+    if (!k) { $('#bay-key').focus(); return; }
+    $('#bay-keygo').disabled = true; $('#bay-keygo').textContent = 'CHECKING…';
+    const j = await act('provider_key', { provider: a.id, key: k });
+    if (j.ok) { SFX.play('success'); toast({ i: 'check', t: a.label + ' connected', x: 'Pick its model and launch.' }); await bayRecheck(); }
+    else { const g = $('#bay-keygo'); if (g) { g.disabled = false; g.textContent = 'CONNECT'; } }
+  });
+  on('bay-cxgo', async () => {
+    const g = $('#bay-cxgo'); g.disabled = true; g.textContent = 'STARTING…';
+    const j = await act('codex_login', {});
+    if (!j.ok) { g.disabled = false; g.textContent = 'SIGN IN WITH CHATGPT'; return; }
+    g.hidden = true; bayCxDraw(j);
+    const t0 = Date.now();
+    const tick = async () => {
+      if ($('#bay-conn').hidden || !$('#bay-cx')) return;
+      let st = {};
+      try { st = await (await fetchT('/act', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'codex_login_state', target: {} }) }, 15000)).json(); } catch (e) {}
+      if (st.state === 'ok') { SFX.play('success'); toast({ i: 'check', t: 'Codex connected', x: 'Pick its model and launch.' }); await bayRecheck(); return; }
+      if (st.state === 'failed' || Date.now() - t0 > 16 * 60000) { bayCxDraw(st); g.hidden = false; g.disabled = false; g.textContent = 'TRY AGAIN'; return; }
+      if (st.code) bayCxDraw(st);
+      BAY_CX_T = setTimeout(tick, 3000);
+    };
+    BAY_CX_T = setTimeout(tick, 3000);
+  });
+}
+function bayCxDraw(st) {
+  const el = $('#bay-cx'); if (!el) return;
+  if (st.state === 'failed') { el.innerHTML = '<p class="bay-hint bad">' + esc(st.error || 'the sign-in stopped') + '</p>'; return; }
+  el.innerHTML = st.code
+    ? '<ol class="bay-steps"><li>Open <a href="' + esc(st.url || 'https://auth.openai.com/codex/device') + '" target="_blank" rel="noopener">' + esc(st.url || 'https://auth.openai.com/codex/device') + '</a> and sign in to ChatGPT</li>'
+      + '<li>Enter this code: <b class="bay-code">' + esc(st.code) + '</b></li><li>Come back here: it connects by itself (the code works for 15 minutes)</li></ol>'
+    : '<p class="bay-hint">starting the sign-in…</p>';
+}
+async function bayRecheck() {
+  try { await poll(); } catch (e) {}
+  const ps = $('#bay-prov'); ps.dataset.sig = '';
+  bayFillOpts(false);
+}
+$('#bay-prov').onchange = () => { SFX.play('click'); bayAgentPick(false); };
+// 26.11 a pair: the first row orchestrates, this one executes (C.act_new_pair)
+let BAY_PAIR = false;
+function bayPairDraw() {
+  const cat = bayCat();
+  $('#bay-pair').hidden = !cat || bayModeOf() === 'continue';
+  const on = !!(cat && BAY_PAIR && bayModeOf() !== 'continue');
+  $('#bay-exrow').hidden = !on;
+  $('#bay-pair').classList.toggle('on', on);
+  $('#bay-pair').textContent = on ? '− EXECUTOR' : '+ EXECUTOR';
+  $('#bay-prov-l span').textContent = on ? 'ORCHESTRATOR' : 'AGENT';
+}
+function bayExFill(fresh) {
+  const cat = bayCat(); if (!cat) return;
+  const ps = $('#bay-xprov'), ok = cat.agents.filter(a => a.state === 'ok');
+  const keep = fresh ? '' : ps.value, ex = cat.exec || {};
+  ps.innerHTML = ok.map(a => '<option value="' + esc(a.id) + '">' + esc(a.label) + '</option>').join('');
+  ps.value = keep && ok.some(a => a.id === keep) ? keep : (ex.provider && ok.some(a => a.id === ex.provider) ? ex.provider : (ok.find(a => a.id === 'codex') || ok[0] || {}).id || '');
+  bayExPick(!keep, ex);
+}
+function bayExPick(useLast, ex) {
+  const a = bayAgent($('#bay-xprov').value); if (!a) return;
+  const ms = $('#bay-xmodel'), es = $('#bay-xeffort');
+  ms.innerHTML = a.models.map(m => '<option value="' + esc(m[0]) + '">' + esc(m[1]) + '</option>').join('');
+  ms.disabled = a.models.length < 2;
+  const last = useLast && ex && ex.provider === a.id;
+  ms.value = last && a.models.some(m => m[0] === ex.model) ? ex.model : (a.model_default || ((a.models[0] || [''])[0]));
+  es.innerHTML = a.efforts.map(e => '<option value="' + esc(e) + '">' + esc(e || 'default effort') + '</option>').join('');
+  $('#bay-xeffort-l').hidden = !a.efforts.length;
+  es.value = last && a.efforts.indexOf(ex.effort) >= 0 ? ex.effort : (a.effort_default || '');
+}
+$('#bay-xprov').onchange = () => { SFX.play('click'); bayExPick(false); };
+$('#bay-pair').onclick = () => { SFX.play('click'); BAY_PAIR = !BAY_PAIR; if (BAY_PAIR) bayExFill(false); bayPairDraw(); };
+// what a launch from outside the bay (a cleanup task) runs on: the bay's default
+function bayChoice() {
+  const c = bayCat(), a = c ? bayAgent(c.default) : null;
+  if (a && a.state === 'ok') return { provider: a.id, model: a.model_default || '', effort: a.effort_default || '' };
+  return { provider: '', model: LS.get('bayModel', (G && G.model_default) || ''), effort: LS.get('bayEffort', (G && G.effort_default) || '') };
+}
+function bayLabel(L) {
+  if (!L || !L.provider) return modelLabel(L ? L.model : '');
+  const one = (p, mo) => { const a = bayAgent(p), m = a && a.models.find(x => x[0] === mo); return (a ? a.label : p) + (m && m[0] ? ' · ' + m[1] : ''); };
+  return one(L.provider, L.model) + (L.exec ? ' + ' + one(L.exec.provider, L.exec.model) : '');
 }
 function bayFilesDraw() {
   $('#bay-files').innerHTML = BAY.files.map((f, i) => '<span class="bayf' + (f.path ? ' ok' : f.failed ? ' bad' : '') + '" title="' + esc(f.name) + '">'
@@ -2206,8 +2354,8 @@ function seqDraw() {
   $('#bay-state').className = 'bay-kicker bay-state ' + st;
   $('#bay-title').textContent = L.title || 'new agent';
   $('#bay-chips').innerHTML = (pk ? ['→ ' + (pk.title || L.sid), pk.state === 'archived' ? 'from the archive' : pk.state === 'idle' ? 'woken up' : 'live']
-    : cont && st === 'online' ? ['no match: new agent', modelLabel(L.model)]
-    : cont ? ['continue the match'] : [modelLabel(L.model), L.effort || 'default effort']).map(c => '<span>' + esc(c) + '</span>').join('');
+    : cont && st === 'online' ? ['no match: new agent', bayLabel(L)]
+    : cont ? ['continue the match'] : [bayLabel(L), L.effort || (L.provider && !(bayAgent(L.provider) || {efforts: [1]}).efforts.length ? '' : 'default effort')].filter(Boolean)).map(c => '<span>' + esc(c) + '</span>').join('');
   $('#bay-note').textContent = st === 'online' ? (pk ? (pk.why ? 'Why this one: ' + pk.why : 'Delivered.') : cont ? (L.msg || 'On the board now.') : 'On the board now.')
     : st === 'failed' ? (L.msg || 'no answer from the computer')
     : cont ? 'The mini reads every session, archived ones too, and sends the order to the one doing this work. Nothing fits = a new agent.'
@@ -2282,9 +2430,14 @@ function launch() {
   const paths = BAY.files.filter(f => f.path).map(f => '"' + f.path + '"');
   if (!text && !paths.length) { SFX.play('sad'); ta.classList.remove('shake'); void ta.offsetWidth; ta.classList.add('shake'); return; }
   const full = text && paths.length ? text + ' ' + paths.join(' ') : (text || paths.join(' '));
-  const model = $('#bay-model').value, effort = $('#bay-effort').value;
-  LS.set('bayModel', model); LS.set('bayEffort', effort);
-  const L = { nonce: newNonce(), text: full, title: (text || BAY.files.map(f => f.name).join(', ')).slice(0, 90), at: Date.now(), state: 'flying', model, effort, mode: bayModeOf() };
+  const provider = bayCat() ? $('#bay-prov').value : '';
+  const pa = bayAgent(provider);
+  if (pa && pa.state !== 'ok' && bayModeOf() !== 'continue') { SFX.play('sad'); toast({ i: 'warning-box', t: pa.label + ' is not connected', x: 'Connect it below the fields first.', cls: 'bad' }); return; }
+  const model = $('#bay-model').value, effort = $('#bay-effort-l').hidden ? '' : $('#bay-effort').value;
+  if (!provider) { LS.set('bayModel', model); LS.set('bayEffort', effort); }
+  const pair = !!(provider && BAY_PAIR && bayModeOf() !== 'continue' && $('#bay-xprov').value);
+  const exec = pair ? { provider: $('#bay-xprov').value, model: $('#bay-xmodel').value, effort: $('#bay-xeffort-l').hidden ? '' : $('#bay-xeffort').value } : null;
+  const L = { nonce: newNonce(), text: full, title: (text || BAY.files.map(f => f.name).join(', ')).slice(0, 90), at: Date.now(), state: 'flying', provider, model, effort, exec, mode: bayModeOf() };
   LAUNCHES.push(L); saveLaunches();
   ta.value = ''; BAY.files = []; bayFilesDraw();
   if (BV.blob) { BV.blob = null; bvPaint(''); }
@@ -2300,7 +2453,7 @@ function launch() {
 // kept flying. Now the POST goes out once, and the result is asked for by nonce
 // every 1.5 s from the third second; whichever arrives first lands the launch.
 async function launchRun(L) {
-  const body = JSON.stringify(Object.assign({ action: L.mode === 'continue' && !HQ_DEV ? 'continue' : 'new', target: { text: L.text, model: L.model, effort: L.effort, nolink: true }, nonce: L.nonce }, HQ_DEV ? { dev: HQ_DEV } : {}));
+  const body = JSON.stringify(Object.assign({ action: L.mode === 'continue' && !HQ_DEV ? 'continue' : 'new', target: Object.assign({ text: L.text, provider: L.provider || '', model: L.model, effort: L.effort, nolink: true }, L.exec ? { exec: L.exec } : {}), nonce: L.nonce }, HQ_DEV ? { dev: HQ_DEV } : {}));
   let finished = false;
   const finish = j => { if (finished || L.state !== 'flying') return; finished = true; launchDone(L, j || {}); };
   if (HQ_DEV) {
@@ -2374,6 +2527,7 @@ function bayModeDraw() {
   $('#bay-go-t').textContent = m === 'continue' ? 'FIND & SEND' : 'LAUNCH';
   $('#bay-text').placeholder = m === 'continue' ? 'What comes next? It goes to the session already doing this work' : 'What should the new agent do?';
   try { if (CUR === 'new') stageBar(); } catch (e) {}
+  try { bayGoSync(); bayPairDraw(); } catch (e) {}
 }
 $('#bay-mode').addEventListener('click', e => {
   const b = e.target.closest('button[data-m]');
@@ -2800,7 +2954,7 @@ const CINE = {
     $('#cine-secs').textContent = secs + 's';
     $('#cine-st').textContent = st === 'online' ? 'Agent online' : st === 'failed' ? 'Launch failed' : word + '…';
     $('#cine-title').textContent = L.title || 'new agent';
-    $('#cine-chips').innerHTML = [modelLabel(L.model), L.effort || 'default effort'].map(c => '<span>' + esc(c) + '</span>').join('');
+    $('#cine-chips').innerHTML = [bayLabel(L), L.effort || (L.provider && !(bayAgent(L.provider) || {efforts: [1]}).efforts.length ? '' : 'default effort')].filter(Boolean).map(c => '<span>' + esc(c) + '</span>').join('');
   },
   // the launch is back from the mini: arrive, or the red alert
   done(L) {
@@ -2980,7 +3134,7 @@ function cleanupLanded(L) {
   LS.set('cleanups', all);
 }
 function launchTask(text, title) {
-  const L = { nonce: newNonce(), text, title, at: Date.now(), state: 'flying', model: LS.get('bayModel', (G && G.model_default) || ''), effort: LS.get('bayEffort', (G && G.effort_default) || '') };
+  const L = Object.assign({ nonce: newNonce(), text, title, at: Date.now(), state: 'flying' }, bayChoice());
   LAUNCHES.push(L); saveLaunches(); launchCardsDraw(); launchRun(L);
   return L;
 }

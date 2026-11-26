@@ -4267,6 +4267,206 @@ def act_set_effort(target):
     return _set_opt(target, "effort", EFFORTS + ("ultra",))
 
 
+# ---------------------------------------------------------- the launch bay
+#
+# 26.11: pick the agent first and connect it here if it is missing, then
+# its model; the bay opens on the last choice. RECRUIT shows the
+# agents (Claude Code, Codex, Mistral Vibe, MiniMax), each connected or with
+# what is missing, then that agent's models and efforts.
+
+BAY_LAST = CFG.state("rc-bay-last.json")
+_CLAUDE_LOGIN = {"t": 0.0, "ok": False}
+
+
+def _claude_signed_in():
+    """Claude Code has a login on this computer (cached for a minute)."""
+    if time.time() - _CLAUDE_LOGIN["t"] < 60:
+        return _CLAUDE_LOGIN["ok"]
+    ok = False
+    if os.path.exists(os.path.expanduser("~/.claude/.credentials.json")):
+        ok = True
+    elif sys.platform == "darwin":
+        try:
+            ok = subprocess.run(["/usr/bin/security", "find-generic-password", "-s",
+                                 "Claude Code-credentials"], stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+        except Exception:
+            ok = False
+    _CLAUDE_LOGIN.update(t=time.time(), ok=ok)
+    return ok
+
+
+def bay_last():
+    try:
+        with open(BAY_LAST) as fh:
+            d = json.load(fh)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _bay_remember(provider, model, effort, exec_=None):
+    """The last launch's choice. A single launch keeps the last executor pick
+    (pair off); a pair launch stores it with pair on."""
+    prev = bay_last()
+    d = {"provider": provider or "claude", "model": model or "", "effort": effort or "",
+         "ts": time.time(), "pair": bool(exec_), "exec": exec_ or prev.get("exec") or {}}
+    try:
+        tmp = BAY_LAST + ".tmp"
+        with open(tmp, "w") as fh:
+            json.dump(d, fh)
+        os.replace(tmp, BAY_LAST)
+    except OSError:
+        pass
+
+
+def bay_catalog():
+    """The agents RECRUIT offers: [{id, label, state, install, models, efforts,
+    model_default, effort_default}]. state: ok | install | login | key."""
+    import rc_providers
+    out = []
+    claude_ok = os.path.exists(G.CLAUDE) or bool(shutil.which("claude"))
+    out.append({
+        "id": "claude", "label": "Claude Code", "sub": "Claude Pro or Max",
+        "state": "ok" if claude_ok and _claude_signed_in() else ("login" if claude_ok else "install"),
+        "install": "curl -fsSL https://claude.ai/install.sh | bash",
+        "models": [["", "CLI default"]] + [list(x) for x in MODEL_CHOICES],
+        "efforts": [""] + list(EFFORTS)})
+    try:
+        import rc_codex
+        cbin = rc_codex.codex_bin()
+        cmodels = [list(x) for x in rc_codex.models()]
+        signed = os.path.exists(os.path.join(rc_codex.CODEX_HOME, "auth.json"))
+    except Exception:
+        cbin, cmodels, signed = "", [], False
+    out.append({
+        "id": "codex", "label": "Codex", "sub": "ChatGPT subscription",
+        "state": "ok" if cbin and signed else ("login" if cbin else "install"),
+        "install": "npm install -g @openai/codex",
+        "models": [["", "Codex default"]] + cmodels,
+        "efforts": [""] + list(rc_codex.EFFORT_CHOICES) if cbin else []})
+    try:
+        import rc_vibe
+        vbin = rc_vibe.vibe_bin()
+        vmodels = [[a, m["display"]] for a, m in rc_vibe.MODELS.items()]
+        vdef = rc_vibe.DEFAULT_MODEL
+    except Exception:
+        vbin, vmodels, vdef = "", [], ""
+    out.append({
+        "id": "vibe", "label": "Mistral Vibe", "sub": "Mistral Vibe plan",
+        "state": "ok" if vbin and rc_providers.vibe_key() else ("key" if vbin else "install"),
+        "install": "curl -LsSf https://mistral.ai/vibe/install.sh | bash",
+        "key_url": "https://chat.mistral.ai/code/extensions?focus=key",
+        "models": vmodels, "model_default": vdef, "efforts": []})
+    for pid, p in rc_providers.PROVIDERS.items():
+        if p.get("per_token"):
+            continue
+        out.append({
+            "id": pid, "label": p["label"], "sub": p.get("sub") or (p["label"] + " plan"),
+            "state": ("ok" if rc_providers.key(pid) else "key") if claude_ok else "install",
+            "install": "curl -fsSL https://claude.ai/install.sh | bash",
+            "key_url": p.get("key_url", ""),
+            "models": [[p["model"], p["model"]]], "efforts": []})
+    last = bay_last()
+    for a in out:
+        a["model_default"] = a.get("model_default") or (a["models"][0][0] if a["models"] else "")
+        a["effort_default"] = ""
+        if last.get("provider") == a["id"]:
+            if any(m[0] == last.get("model") for m in a["models"]):
+                a["model_default"] = last.get("model")
+            if last.get("effort") in a["efforts"]:
+                a["effort_default"] = last.get("effort")
+    ids = [a["id"] for a in out if a["state"] == "ok"]
+    first = last.get("provider") if last.get("provider") in ids else (ids[0] if ids else "claude")
+    ex = last.get("exec") or {}
+    return {"agents": out, "default": first, "pair": bool(last.get("pair")),
+            "exec": ex if ex.get("provider") in ids else {}}
+
+
+def act_provider_key(target):
+    """Connect Mistral Vibe or MiniMax from RECRUIT: check the pasted key with one
+    cheap call, then keep it in the providers' keys.env (600)."""
+    import rc_providers
+    provider = ((target or {}).get("provider") or "").strip()
+    key = ((target or {}).get("key") or "").strip()
+    var = rc_providers.key_var(provider)
+    if not var:
+        raise ValueError("this agent is not connected with a key")
+    if not key:
+        raise ValueError("paste the key first")
+    ok, why = rc_providers.check_key(provider, key)
+    if not ok:
+        raise ValueError(why)
+    rc_providers.save_key(var, key)
+    return "%s connected" % (rc_providers.label(provider) or "Mistral Vibe")
+
+
+CODEX_LOGIN_LOG = CFG.state("rc-auth-codex.log")
+_CODEX_LOGIN = {"proc": None}
+
+
+def act_codex_login(target=None):
+    """Sign Codex in with ChatGPT from RECRUIT: `codex login --device-auth`
+    prints a link and a one-time code; the person opens the link, types the
+    code, and the CLI writes ~/.codex/auth.json. Polled through codex_login_state."""
+    import rc_codex
+    cbin = rc_codex.codex_bin()
+    if not cbin:
+        raise ValueError("Codex is not installed on this computer")
+    p = _CODEX_LOGIN.get("proc")
+    if p is not None and p.poll() is None:
+        try:
+            os.killpg(p.pid, signal.SIGTERM)
+        except OSError:
+            pass
+    fd = os.open(CODEX_LOGIN_LOG, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    env = dict(os.environ, NO_COLOR="1")
+    _CODEX_LOGIN["proc"] = subprocess.Popen([cbin, "login", "--device-auth"], stdin=subprocess.DEVNULL,
+                                            stdout=fd, stderr=fd, env=env, start_new_session=True)
+    os.close(fd)
+    _CODEX_LOGIN["t0"] = time.time()
+    for _ in range(30):
+        time.sleep(0.5)
+        st = codex_login_state()
+        if st.get("code") or st.get("state") != "waiting":
+            return st
+    return codex_login_state()
+
+
+def codex_login_state():
+    import rc_codex
+    try:
+        with open(CODEX_LOGIN_LOG, "rb") as fh:
+            txt = fh.read().decode("utf-8", "ignore")
+    except OSError:
+        txt = ""
+    txt = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", txt)
+    url = (re.findall(r"https://auth\.openai\.com/\S*device\S*", txt) or [""])[-1]
+    code = (re.findall(r"\b([A-Z0-9]{4}-[A-Z0-9]{4,6})\b", txt) or [""])[-1]
+    p = _CODEX_LOGIN.get("proc")
+    rc = p.poll() if p is not None else None
+    signed = os.path.exists(os.path.join(rc_codex.CODEX_HOME, "auth.json"))
+    if "Successfully logged in" in txt or (rc == 0 and signed):
+        state = "ok"
+    elif rc not in (None, 0) or (p is None and not code):
+        state = "failed"
+    else:
+        state = "waiting"
+    err = ""
+    if state == "failed":
+        m = re.findall(r"(?i)error[^\n]*", txt)
+        err = (m[-1] if m else "the sign-in stopped")[:160]
+    return {"state": state, "url": url, "code": code, "error": err}
+
+
+def act_codex_login_state(target=None):
+    return codex_login_state()
+
+
+def act_set_effort(target):
+    return _set_opt(target, "effort", EFFORTS + ("ultra",))
+
+
 def act_bulk_retire(prefs):
     return _bulk_flag(prefs, True)
 
@@ -5881,7 +6081,89 @@ def _type_into(fifo, text, log=None):
     _confirm_review(fifo, log, size0)
 
 
+_NEW = {"uuid": ""}   # the uuid the last act_new registered (act_new_pair reads it)
+
+PAIR_EXEC_INTRO = (
+    "You are the EXECUTOR in a pair of agents. An orchestrator agent will send you tasks "
+    "in this chat, each starting with [task from the orchestrator]. For each task: do the "
+    "work in this folder, then answer with a short report: what you did, files changed, "
+    "commands run and their results, and anything left open. Do nothing until a task "
+    "arrives. Reply now with one word: ready.")
+
+PAIR_ORCH_NOTE = """
+
+---
+You are the ORCHESTRATOR of a pair of agents. Your executor is a second agent ({label}, session {eid}) working in the same folder ({cwd}). Plan the mission, hand the implementation steps to the executor one at a time, check what it did yourself (read the files, run the checks), send it fixes until the mission is done, then report to the person: what the executor did and what you verified.
+To give the executor a task, run in your shell (a long task goes on stdin):
+  python3 {bin} ask {eid} - <<'TASK'
+  <the task, self-contained: the executor does not see this conversation>
+  TASK
+It sends the task, waits up to 100 seconds and prints the executor's answer. If it prints STILL WORKING, run `python3 {bin} wait {eid}` until it answers (add --max 540 if your shell tool allows a 10-minute command)."""
+
+
+def act_new_pair(target):
+    """26.11: RECRUIT launches an orchestrator and an executor together.
+    The executor starts first and waits; the orchestrator gets the mission plus
+    how to reach it (rc_pair.py). Both records keep the link to each other."""
+    ex = target.get("exec") or {}
+    et = {"text": PAIR_EXEC_INTRO, "provider": ex.get("provider") or "",
+          "model": ex.get("model") or "", "effort": ex.get("effort") or "", "nolink": True}
+    _NEW["uuid"] = ""
+    msg1 = act_new(et, wait_link=False)
+    eid = _NEW["uuid"]
+    if not eid:
+        raise ValueError("the executor did not start: %s" % msg1)
+    label = _agent_label(ex.get("provider"), ex.get("model"))
+    ot = dict(target)
+    ot.pop("exec", None)
+    ot["text"] = (target.get("text") or "").strip() + PAIR_ORCH_NOTE.format(
+        label=label, eid=eid[:8], cwd=G.WORKDIR,
+        bin=os.path.join(os.path.dirname(os.path.abspath(__file__)), "rc_pair.py"))
+    _NEW["uuid"] = ""
+    msg2 = act_new(ot, wait_link=False)
+    oid = _NEW["uuid"]
+    title = " ".join((target.get("text") or "").split())[:60]
+
+    def _link():
+        reg = G.load(G.REG_PATH, {})
+        sess = reg.get("sessions", {})
+        for u, role, peer in ((eid, "executor", oid), (oid, "orchestrator", eid)):
+            if u and u in sess:
+                sess[u]["pair"] = {"role": role, "peer": peer}
+                sess[u]["title_manual"] = ("%s: %s" % ("Executor" if role == "executor" else "Orchestrator", title))[:40]
+        G.save(G.REG_PATH, reg)
+    try:
+        with_lock(_link)
+    except Exception:
+        pass
+    if not oid:
+        return "executor %s is up, but the orchestrator did not start: %s" % (eid[:8], msg2)
+    last = bay_last()
+    _bay_remember(last.get("provider"), last.get("model"), last.get("effort"),
+                  {"provider": ex.get("provider") or "claude", "model": ex.get("model") or "",
+                   "effort": ex.get("effort") or ""})
+    # «new session <id>» first: the launch screen lands on that id (the orchestrator)
+    return "new session %s launched as the orchestrator (%s), its executor is %s (%s)" % (
+        oid[:8], _agent_label(target.get("provider"), target.get("model")), eid[:8], label)
+
+
+def _agent_label(provider, model):
+    names = {"": "Claude Code", "claude": "Claude Code", "codex": "Codex", "vibe": "Mistral Vibe"}
+    try:
+        import rc_providers
+        base = names.get(provider or "") or rc_providers.label(provider) or provider
+    except Exception:
+        base = names.get(provider or "", provider or "Claude Code")
+    return base + (" " + model if model else "")
+
+
 def act_new(target, wait_link=True):
+    if isinstance(target, dict) and target.get("exec"):
+        return act_new_pair(target)
+    return _act_new_one(target, wait_link)
+
+
+def _act_new_one(target, wait_link=True):
     """Завести новую сессию прямо из панели.
 
     Чем это лучше чата, начатого в приложении: процесс наш, у него есть канал
@@ -5918,7 +6200,12 @@ def act_new(target, wait_link=True):
         import rc_codex
         if not rc_codex.codex_bin():
             raise ValueError("Codex is not installed on this computer")
-        model = effort = None
+        # RECRUIT picks Codex's own model and effort (26.11); anything else is
+        # dropped and Codex uses its default
+        if model not in [m for m, _ in rc_codex.models()]:
+            model = None
+        if effort not in rc_codex.EFFORT_CHOICES:
+            effort = None
         wait_link = False
     elif provider == "vibe":
         # the Mistral Vibe CLI on a Vibe plan key (rc_vibe)
@@ -5928,6 +6215,8 @@ def act_new(target, wait_link=True):
             raise ValueError("Mistral Vibe is not installed on this computer")
         if not rc_providers.vibe_key():
             raise ValueError("no Mistral Vibe key: see INSTALL.md, \"Other models\"")
+        if not vmodel and model in rc_vibe.MODELS:
+            vmodel = model
         model = effort = None
         wait_link = False
     elif provider:
@@ -5942,9 +6231,9 @@ def act_new(target, wait_link=True):
                              % (rc_providers.label(provider), bal))
         model = effort = None
         wait_link = False
-    if model and model not in MODELS:
+    if model and model not in MODELS and provider != "codex":
         raise ValueError("invalid model %r" % model[:20])
-    if effort and effort not in EFFORTS:
+    if effort and effort not in EFFORTS and provider != "codex":
         raise ValueError("invalid effort %r" % effort[:20])
 
     name = G.make_name(" ".join(text.split()), "new")
@@ -5960,6 +6249,8 @@ def act_new(target, wait_link=True):
     os.makedirs(G.PROJ, exist_ok=True)
     before = set(os.listdir(G.PROJ))
     logf, fifo = G.launch_new(name, key, vmodel or model, effort, provider)
+    # RECRUIT opens on this choice next time, on every device (26.11)
+    _bay_remember(provider, vmodel or model, effort)
 
     # uuid узнаём по появившемуся транскрипту: до первого промпта Claude его не
     # создаёт, поэтому ждём, а не спрашиваем.
@@ -6107,6 +6398,7 @@ def act_new(target, wait_link=True):
                 break
             time.sleep(2)
 
+    _NEW["uuid"] = uuid or ""
     who = uuid[:8] if uuid else key
     if link:
         return "new session %s → https://claude.ai/code/%s" % (who, link)

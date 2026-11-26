@@ -1370,6 +1370,18 @@ def api(since=0, fleet=None, snap=None):
     out["effort_default"] = next((r.get("effort") or (r.get("digest") or {}).get("effort_now")
                                   for r in recent if r.get("effort")
                                   or (r.get("digest") or {}).get("effort_now")), "")
+    # 26.11 the bay picks an agent first, then its model (C.bay_catalog)
+    if not remote:
+        try:
+            out["bay"] = C.bay_catalog()
+            if not C.bay_last():
+                # no launch from the bay yet: Claude opens on what the newest session runs
+                for a in out["bay"]["agents"]:
+                    if a["id"] == "claude":
+                        a["model_default"] = out.get("model_default") or ""
+                        a["effort_default"] = out.get("effort_default") or ""
+        except Exception as exc:  # noqa: BLE001
+            out["bay"] = {"agents": [], "default": "claude", "error": str(exc)[:120]}
     # life support: the disk too, renders fill it (10-14 ENOSPC)
     try:
         if remote:

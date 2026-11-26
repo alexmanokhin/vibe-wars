@@ -4948,6 +4948,9 @@ ACTIONS = {
     "set_project": C.act_set_project,
     "set_title": C.act_set_title,
     "new": C.act_new,
+    "provider_key": C.act_provider_key,
+    "codex_login": C.act_codex_login,
+    "codex_login_state": C.act_codex_login_state,
     "migrate": C.act_migrate,
 }
 
@@ -4961,6 +4964,7 @@ SLOW_ACTIONS = {"transfer", "move_note", "move_prepare", "continue"}
 QUICK_ACTIONS = {"interrupt", "set_model", "set_effort", "set_title", "set_project", "retire",
                  "unretire", "bulk_retire", "bulk_unretire", "preflight",
                  "auth_start", "auth_code", "auth_cancel",
+                 "provider_key", "codex_login", "codex_login_state",
                  "acct_switch", "acct_auto", "acct_forget"}
 # One session at a time, not one action at a time: two sends into the same
 # FIFO must not interleave, and a double-clicked Launch must not start two

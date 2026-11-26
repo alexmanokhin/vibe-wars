@@ -1608,6 +1608,7 @@ window.addEventListener('message', e => {
   else if (d.rc === 'net') { const cm = $('#comm'); cm.className = 'comm ' + (d.state || 'ok'); cm.title = d.state === 'ok' ? 'link to the computer: good' : d.state === 'weak' ? 'link to the computer: weak, sends are confirmed and retried' : 'link to the computer: down, messages wait in the outbox'; }
   else if (d.rc === 'flash') { if (String(d.t || '').charAt(0) === '✗') SFX.play('error'); }
   else if (d.rc === 'esc') goHQ();
+  else if (d.rc === 'goto' && d.sid) { const go = n => { if (G && (G.rows || []).some(r => r.short === d.sid)) openAgent(d.sid); else if (n < 20) { poll(); setTimeout(() => go(n + 1), 1500); } }; go(0); }
   else if (d.rc === 'nav') nextAgent(d.dir || 1);
   else if (d.rc === 'created') { if (d.sid) { CUR = d.sid; SEEN[d.sid] = NOW(); } setTimeout(poll, 1500); }
   else if (d.rc === 'drag') {

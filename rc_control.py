@@ -501,6 +501,9 @@ def snapshot():
             "project": project_of(r),
             "model": r.get("model") or "",
             "effort": r.get("effort") or "",
+            "pair": r.get("pair") or None,
+            "handoff_from": (r.get("handoff_from") or "")[:8],
+            "handoff_to": (r.get("handoff_to") or "")[:8],
         })
     out.sort(key=lambda x: x["la"], reverse=True)
 
@@ -6147,6 +6150,121 @@ def act_new_pair(target):
         oid[:8], _agent_label(target.get("provider"), target.get("model")), eid[:8], label)
 
 
+def _handoff_brief(uuid, old_label):
+    """The first prompt of the session that takes over: the task the old one
+    started with, the latest part of its conversation, and where the full
+    history lies."""
+    msgs = [m for m in (transcript(uuid, limit=400).get("shown") or [])
+            if m.get("role") in ("user", "assistant") and (m.get("text") or "").strip()]
+    first = next(((m.get("text") or "").strip() for m in msgs if m.get("role") == "user"), "")
+    tail, size = [], 0
+    for m in reversed(msgs[1:] if msgs and first and msgs[0].get("role") == "user" else msgs):
+        t = " ".join((m.get("text") or "").split())
+        if len(t) > 2500:
+            t = t[:2500] + " [...]"
+        line = "%s: %s" % ("PERSON" if m["role"] == "user" else "AGENT", t)
+        if size + len(line) > 14000:
+            break
+        tail.append(line)
+        size += len(line)
+    tail.reverse()
+    path = _tx_path(uuid)
+    return ("You are taking over a session that ran on %s (session %s) in this folder (%s). "
+            "Continue the work from where it stopped.\n\n"
+            "The task it started with:\n%s\n\n"
+            "The latest part of its conversation, oldest first:\n%s\n\n"
+            "The full history is in %s if you need more detail. First check the current state "
+            "of the files, then go on. Tell the person in one or two lines where you picked up."
+            % (old_label, uuid[:8], G.WORKDIR, first[:4000] or "(not found)",
+               "\n".join(tail) or "(empty)", path))
+
+
+def act_handoff(target):
+    """26.11 «Continue in...»: the session goes on with another agent. A new
+    session starts there with a brief of this one (_handoff_brief); this one
+    stays as it is, and the two records point at each other."""
+    if not isinstance(target, dict):
+        raise ValueError("expected an object {id, provider}")
+    uuid = resolve(target.get("id") or "")
+    rec = G.load(G.REG_PATH, {}).get("sessions", {}).get(uuid) or {}
+    old = rec.get("provider") or "claude"
+    new = (target.get("provider") or "claude").strip()
+    old_label = _agent_label(old, rec.get("model"))
+    brief = _handoff_brief(uuid, old_label)
+    _NEW["uuid"] = ""
+    msg = act_new({"text": brief, "provider": new, "model": target.get("model") or "",
+                   "effort": target.get("effort") or "", "nolink": True, "quiet_last": True}, wait_link=False)
+    nid = _NEW["uuid"]
+    if not nid:
+        raise ValueError("the new session did not start: %s" % msg)
+    title = (rec.get("title_manual") or rec.get("title") or rec.get("name") or uuid[:8])
+
+    def _link():
+        reg = G.load(G.REG_PATH, {})
+        sess = reg.get("sessions", {})
+        if nid in sess:
+            sess[nid]["handoff_from"] = uuid
+            short = " ".join(title.split())
+            lab = " → " + _agent_label(new, None)
+            sess[nid]["title_manual"] = (short[:max(8, 40 - len(lab) - 1)].rstrip() + ("…" if len(short) > 40 - len(lab) - 1 else "") + lab)[:40]
+        if uuid in sess:
+            sess[uuid]["handoff_to"] = nid
+        G.save(G.REG_PATH, reg)
+    try:
+        with_lock(_link)
+    except Exception:
+        pass
+    return {"msg": "new session %s continues %s on %s" % (nid[:8], uuid[:8], _agent_label(new, None)),
+            "sid": nid[:8]}
+
+
+def act_attach_executor(target):
+    """26.11: a running session becomes an orchestrator: an executor starts on
+    the picked agent, and the session is told how to give it tasks."""
+    if not isinstance(target, dict):
+        raise ValueError("expected an object {id, provider}")
+    uuid = resolve(target.get("id") or "")
+    _NEW["uuid"] = ""
+    prov = (target.get("provider") or "codex").strip()
+    msg = act_new({"text": PAIR_EXEC_INTRO, "provider": prov, "model": target.get("model") or "",
+                   "effort": target.get("effort") or "", "nolink": True, "quiet_last": True}, wait_link=False)
+    eid = _NEW["uuid"]
+    if not eid:
+        raise ValueError("the executor did not start: %s" % msg)
+    label = _agent_label(prov, target.get("model"))
+    note = PAIR_ORCH_NOTE.format(label=label, eid=eid[:8], cwd=G.WORKDIR,
+                                 bin=os.path.join(os.path.dirname(os.path.abspath(__file__)), "rc_pair.py"))
+    note = note.replace("\n---\nYou are the ORCHESTRATOR", "From now on you are the ORCHESTRATOR").strip()
+    rec = G.load(G.REG_PATH, {}).get("sessions", {}).get(uuid) or {}
+    title = " ".join((rec.get("title_manual") or rec.get("title") or rec.get("name") or "").split())[:30]
+
+    def _link():
+        reg = G.load(G.REG_PATH, {})
+        sess = reg.get("sessions", {})
+        if eid in sess:
+            sess[eid]["pair"] = {"role": "executor", "peer": uuid}
+            sess[eid]["title_manual"] = ("Executor: " + title)[:40]
+        if uuid in sess:
+            sess[uuid]["pair"] = {"role": "orchestrator", "peer": eid}
+        G.save(G.REG_PATH, reg)
+    try:
+        with_lock(_link)
+    except Exception:
+        pass
+    res = act_say({"id": uuid, "text": note})
+    told = res.get("msg") if isinstance(res, dict) else res
+    return "executor %s (%s) is up; %s: %s" % (eid[:8], label, uuid[:8], (told or "")[:80])
+
+
+_CAT_CACHE = {"t": 0.0, "v": None}
+
+
+def bay_catalog_cached():
+    if time.time() - _CAT_CACHE["t"] > 20 or _CAT_CACHE["v"] is None:
+        _CAT_CACHE.update(t=time.time(), v=bay_catalog())
+    return _CAT_CACHE["v"]
+
+
 def _agent_label(provider, model):
     names = {"": "Claude Code", "claude": "Claude Code", "codex": "Codex", "vibe": "Mistral Vibe"}
     try:
@@ -6249,8 +6367,10 @@ def _act_new_one(target, wait_link=True):
     os.makedirs(G.PROJ, exist_ok=True)
     before = set(os.listdir(G.PROJ))
     logf, fifo = G.launch_new(name, key, vmodel or model, effort, provider)
-    # RECRUIT opens on this choice next time, on every device (26.11)
-    _bay_remember(provider, vmodel or model, effort)
+    # RECRUIT opens on this choice next time, on every device (26.11); not for
+    # the sessions a handoff or an executor attach starts on their own
+    if not target.get("quiet_last"):
+        _bay_remember(provider, vmodel or model, effort)
 
     # uuid узнаём по появившемуся транскрипту: до первого промпта Claude его не
     # создаёт, поэтому ждём, а не спрашиваем.

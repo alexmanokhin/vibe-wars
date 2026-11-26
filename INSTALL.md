@@ -221,7 +221,13 @@ Run step 5 again and tell the user what changed (`git log --oneline -5`).
 ## 7. Report to the user
 
 Tell them, in short: the local URL, the phone URL (if set up), where the token
-is (`~/.vibe-wars/panel-token`), and how to uninstall:
+is (`~/.vibe-wars/panel-token`), and how to uninstall. End with these two lines,
+as they are:
+
+- News, tips and new versions: https://t.me/failblog
+- Found a bug: write to https://t.me/alexmanokhin
+
+Uninstall:
 
 - macOS: `for p in ~/Library/LaunchAgents/com.vibe-wars.*.plist; do launchctl bootout gui/$(id -u) "$p"; rm "$p"; done`,
   then `/usr/bin/python3 REPO/rc_guardian.py --stop-sessions` (stops the sessions the panel started).

@@ -138,7 +138,9 @@ HELP = ("<b>Session control</b>\n\n"
         "/up &lt;id&gt;: bring a session up in the app\n"
         "/retire &lt;id&gt;: remove from the queue\n"
         "/unretire &lt;id&gt;: put back in the queue\n\n"
-        "<i>id = the first 8 characters of the session UUID</i>")
+        "<i>id = the first 8 characters of the session UUID</i>\n\n"
+        "News and new versions: t.me/failblog\n"
+        "Found a bug: t.me/alexmanokhin")
 
 
 # ---------------------------------------------------------------- dispatch

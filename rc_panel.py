@@ -585,6 +585,9 @@ text-transform:uppercase;letter-spacing:.06em}
 #drbody .txmore{display:flex;gap:10px;align-items:center;justify-content:center;
 flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .rowopt.saving{opacity:.6}
+.rowopt.agentpick{max-width:170px}
+.pairnote{font-size:12px;color:var(--muted);margin-right:10px}
+.pairnote a{color:var(--accent)}
 .iconbtn.stopbtn{color:var(--warn);border-color:var(--warn-line);font-size:13px}
 .iconbtn.stopbtn.saving{opacity:.55}
 #drbody .stopnote{align-self:center;font-family:var(--mono);font-size:11px;color:var(--muted);
@@ -1482,6 +1485,34 @@ function rowOpt(el, id, kind){
     const back=el.dataset.ok||'';
     el.value=back; el.dataset.was=back; optRemember(id, kind, back);
   });
+}
+// 26.11 the agent switch in the header: another agent continues this session
+async function rowAgent(el, id){
+  const v=el.value, was=el.querySelector('option[selected]');
+  const name=(el.options[el.selectedIndex]||{}).text||v;
+  if(!confirm(name+'?\\n\\nA new session starts there with a brief of this conversation and goes on from where it stopped. This one stays as it is.')){
+    if(was) el.value=was.value; return; }
+  flash('… starting '+name);
+  try{
+    const r=await fetch('/act',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'handoff',target:{id:id,provider:v},dev:DEV})});
+    const j=await r.json();
+    flash(j.ok?('✓ '+j.msg):('✗ '+j.msg));
+    if(was) el.value=was.value;
+    if(j.ok && j.sid) rowGo(j.sid);
+  }catch(e){ flash('✗ '+e); if(was) el.value=was.value; }
+}
+async function rowExec(el, id){
+  const v=el.value; if(!v) return;
+  const name=(el.options[el.selectedIndex]||{}).text||v;
+  el.value='';
+  if(!confirm(name+'?\\n\\nIt starts next to this session, and this session becomes its orchestrator: it plans, gives it tasks and checks the results.')) return;
+  await act('attach_executor', {id:id, provider:v}, 'starting the '+name);
+}
+function rowGo(sid){
+  if(IN_HQ){ gameEmit('goto', {sid:sid}); return; }
+  if(typeof ROWS!=='undefined' && ROWS[sid]){ openTx(sid); return; }
+  location.hash=sid; setTimeout(function(){ location.reload(); }, 1500);
 }
 async function bulk(action, verb){
   const ids=picks();
@@ -4281,7 +4312,42 @@ def row_head_html(r, devs=None, cur=None):
                            "CLI default", model_name(dg.get("model_id"))),
                 opt_select(r["short"], "effort", r.get("effort"), ROW_EFFORTS,
                            "CLI default effort", dg.get("effort_now") or "")]
+    # 26.11 the agent itself: another one continues this session (act_handoff),
+    # and any session can take an executor (act_attach_executor)
+    try:
+        agents = [a for a in (C.bay_catalog_cached().get("agents") or []) if a.get("state") == "ok"]
+    except Exception:
+        agents = []
+    if agents and r["live"]:
+        curp = r.get("provider") or "claude"
+        names = [(a["id"], a["label"]) for a in agents]
+        if curp not in [a for a, _ in names]:
+            names.insert(0, (curp, curp))
+        opts.insert(0, '<select class="rowopt agentpick" title="continue this session in another agent"'
+                       ' onchange="rowAgent(this,\'%s\')">%s</select>'
+                    % (esc(r["short"]), "".join('<option value="%s"%s>%s</option>'
+                                                % (esc(a), " selected" if a == curp else "",
+                                                   esc(l if a == curp else "continue in " + l))
+                                                for a, l in names)))
+        pr = r.get("pair") or {}
+        if not pr:
+            opts.append('<select class="rowopt" title="add an executor: this session becomes the orchestrator"'
+                        ' onchange="rowExec(this,\'%s\')"><option value="">+ executor</option>%s</select>'
+                        % (esc(r["short"]), "".join('<option value="%s">executor: %s</option>'
+                                                    % (esc(a), esc(l)) for a, l in names)))
     extra = []
+    pr = r.get("pair") or {}
+    if pr.get("peer"):
+        extra.append('<span class="pairnote">%s · %s <a href="#" onclick="rowGo(\'%s\');return false">%s</a></span>'
+                     % ("orchestrator" if pr.get("role") == "orchestrator" else "executor",
+                        "its executor" if pr.get("role") == "orchestrator" else "works for",
+                        esc(pr["peer"][:8]), esc(pr["peer"][:8])))
+    if r.get("handoff_to"):
+        extra.append('<span class="pairnote">continued in <a href="#" onclick="rowGo(\'%s\');return false">%s</a></span>'
+                     % (esc(r["handoff_to"]), esc(r["handoff_to"])))
+    if r.get("handoff_from"):
+        extra.append('<span class="pairnote">continues <a href="#" onclick="rowGo(\'%s\');return false">%s</a></span>'
+                     % (esc(r["handoff_from"]), esc(r["handoff_from"])))
     if r.get("empty"):
         extra.append('<span class="warnnote">empty — a claude -p /usage artefact, '
                      'holding a slot for nothing</span>')
@@ -4949,6 +5015,8 @@ ACTIONS = {
     "set_title": C.act_set_title,
     "new": C.act_new,
     "provider_key": C.act_provider_key,
+    "handoff": C.act_handoff,
+    "attach_executor": C.act_attach_executor,
     "codex_login": C.act_codex_login,
     "codex_login_state": C.act_codex_login_state,
     "migrate": C.act_migrate,

@@ -7,6 +7,9 @@ on the same computer or from your phone over Tailscale.
 
 Not affiliated with Anthropic.
 
+News, tips and new versions: [t.me/failblog](https://t.me/failblog).
+Found a bug or something does not work: write to [t.me/alexmanokhin](https://t.me/alexmanokhin).
+
 ## Requirements
 
 - A Mac (macOS 13 or newer) or a Linux machine that stays on while you work.
@@ -104,6 +107,9 @@ v0.1. Many code comments are still in Russian.
 в одном окне, запуск новых, сообщения в сессии, ответы на вопросы Claude,
 лимиты, нагрузка машины, переключение аккаунтов. Открывается в браузере на
 компьютере или с телефона через Tailscale.
+
+Новости, советы и новые версии: [t.me/failblog](https://t.me/failblog).
+Нашли баг или что-то не работает: пишите [t.me/alexmanokhin](https://t.me/alexmanokhin).
 
 ## Что нужно
 

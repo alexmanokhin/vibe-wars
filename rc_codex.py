@@ -88,7 +88,7 @@ def launch_cmd(model=None, effort=None, resume_id=None, rows=ROWS, cols=COLS):
     as a string. resume_id reopens a thread by id."""
     argv = [codex_bin()]
     if resume_id:
-        argv += ["resume", str(resume_id)]
+        argv += ["resume", cid_for(str(resume_id))]
     argv += ["--no-daemon", "--dangerously-bypass-approvals-and-sandbox",
              "-c", "check_for_update_on_startup=false",
              # the user config's notify hook launches the Computer Use client
@@ -166,7 +166,31 @@ def find_rollout(started_after_ts, cwd, pid=None):
     return best[0], best[1]
 
 
+# ⛔ 26.11: a Codex thread id is a UUIDv7, whose first 8 characters are the
+# clock (they change every 65 s). The panel tells sessions apart by those 8
+# characters (cards, /tmp/rc-in-<8>.fifo, logs), so two Codex sessions started
+# in the same minute (always, for an orchestrator + executor pair) shared one
+# input channel and one card. The registry keys a Codex session by key_for(id):
+# the random half first, a 'c' where UUIDv7 has its version 7, then the clock.
+# Older sessions keep the raw id; cid_for() gives the thread id back for both.
+def key_for(cid):
+    h = (cid or "").replace("-", "").lower()
+    if len(h) != 32 or h[12] != "7":
+        return cid
+    k = h[16:28] + "c" + h[28:32] + h[0:12] + h[13:16]
+    return "%s-%s-%s-%s-%s" % (k[:8], k[8:12], k[12:16], k[16:20], k[20:])
+
+
+def cid_for(key):
+    k = (key or "").replace("-", "").lower()
+    if len(k) != 32 or k[12] != "c":
+        return key
+    h = k[17:29] + "7" + k[29:32] + k[0:12] + k[13:17]
+    return "%s-%s-%s-%s-%s" % (h[:8], h[8:12], h[12:16], h[16:20], h[20:])
+
+
 def path_for_id(thread_id):
+    thread_id = cid_for(thread_id)
     hits = glob.glob(os.path.join(SESSIONS, "*/*/*/rollout-*-%s.jsonl" % thread_id))
     return hits[0] if hits else ""
 

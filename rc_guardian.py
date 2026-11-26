@@ -504,7 +504,7 @@ def live_uuids():
             continue
         m = RESUME_RE.search(args)
         if m:
-            found.add(m.group(1))
+            found.add(_rid(m.group(1), args))
             continue
         born_here = new_session_uuid(args)
         if born_here:
@@ -522,6 +522,29 @@ RESUME_RE = re.compile(r"(?:^|\s)(?:--)?resume\s+([0-9a-f-]{36})")
 
 def is_codex_args(args):
     return all(m in args for m in CODEX_MARK)
+
+_REG_KEYS = {"mt": None, "keys": set()}
+
+
+def _rid(rid, args):
+    """The registry key of the session a resume id in argv belongs to. Codex
+    sessions are keyed by rc_codex.key_for(thread id) since 26.11; older ones
+    by the raw id."""
+    if not rid or not is_codex_args(args):
+        return rid
+    import rc_codex
+    k = rc_codex.key_for(rid)
+    if k == rid:
+        return rid
+    try:
+        mt = os.stat(REG_PATH).st_mtime_ns
+    except OSError:
+        return k
+    if _REG_KEYS["mt"] != mt:
+        _REG_KEYS["keys"] = set((load(REG_PATH, {}).get("sessions") or {}).keys())
+        _REG_KEYS["mt"] = mt
+    return rid if (rid in _REG_KEYS["keys"] and k not in _REG_KEYS["keys"]) else k
+
 
 
 def is_vibe_args(args):
@@ -990,7 +1013,7 @@ def wrapper_logs():
         if not m:
             continue
         r = RESUME_RE.search(args)
-        uuid = r.group(1) if r else new_session_uuid(args)
+        uuid = _rid(r.group(1), args) if r else new_session_uuid(args)
         if uuid:
             out[uuid] = m.group(1)
     return out
@@ -1607,7 +1630,7 @@ def reap_husks():
             continue
         m = RESUME_RE.search(args)
         if m:
-            uuids.append(m.group(1))
+            uuids.append(_rid(m.group(1), args))
     groups = set()
     for pid in pids:
         pgid = sh(f"ps -o pgid= -p {pid}").strip()
@@ -1942,7 +1965,7 @@ def session_procs(rows=None):
         if not m:
             continue
         r = RESUME_RE.search(args)
-        uuid = r.group(1) if r else new_session_uuid(args)
+        uuid = _rid(r.group(1), args) if r else new_session_uuid(args)
         if not uuid:
             continue
         # claude is the child of `script` that carries --remote-control.

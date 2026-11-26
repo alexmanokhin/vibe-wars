@@ -54,6 +54,16 @@ class LockBusy(RuntimeError):
 _REG_MUTEX = threading.RLock()
 
 
+def _codex_cid(uuid):
+    """The Codex thread id behind a registry key (rc_codex.key_for), as it
+    shows in argv; the key itself for every other session."""
+    try:
+        import rc_codex
+        return rc_codex.cid_for(uuid)
+    except Exception:
+        return uuid
+
+
 def with_lock(fn):
     """Run fn() holding the guardian pass lock; always release it."""
     deadline = time.time() + LOCK_BUDGET_S
@@ -117,7 +127,7 @@ def pid_for(uuid, rows=None):
     for pid, args in rows:
         # a --fork-session copy carries the uuid too, but it is another session:
         # taken for this one it blocked a relaunch as "already live" (09-28)
-        if uuid not in args or not G.is_rc_args(args) or "--fork-session" in args:
+        if (uuid not in args and _codex_cid(uuid) not in args) or not G.is_rc_args(args) or "--fork-session" in args:
             continue
         if not (args.lstrip().startswith(G.CLAUDE) or _is_codex_main(args)):
             continue
@@ -153,7 +163,7 @@ def _vibe_pid(uuid, rows):
     for pid, args in rows:
         if not (G.is_vibe_args(args) and re.match(r"\s*(\S*/)?script\s", args)):
             continue
-        if uuid in args or G.new_session_uuid(args) == uuid:
+        if uuid in args or _codex_cid(uuid) in args or G.new_session_uuid(args) == uuid:
             wrapper = pid
             break
     if wrapper is None:
@@ -1541,7 +1551,7 @@ def log_for(uuid, rows=None):
         m = _TUI_LOG_RE.search(args)
         if not m:
             continue
-        if uuid in args or G.new_session_uuid(args) == uuid:
+        if uuid in args or _codex_cid(uuid) in args or G.new_session_uuid(args) == uuid:
             return m.group(1)
     return None
 
@@ -6408,7 +6418,8 @@ def _act_new_one(target, wait_link=True):
             else:
                 rollout, cid = rc_codex.find_rollout(t0, G.WORKDIR)
             if cid:
-                uuid = cid
+                # keyed so that its first 8 characters are not the clock (rc_codex.key_for)
+                uuid = rc_codex.key_for(cid)
                 break
     elif provider:
         # On another model (an API token in the env) Claude Code writes the

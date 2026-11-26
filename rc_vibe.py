@@ -41,10 +41,26 @@ ID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 # The DeepSeek model Mistral serves to Vibe plans (the only deepseek id on
 # /v1/models 25.11). It takes reasoning off/high; we use high.
 MODELS = {
+    # 26.11: everything the Vibe plan key reaches that calls tools; one call to
+    # each moved only vibe_budget (the plan), never api_budget
     "deepseek": {"name": "deepseek-v4-1-flash-1017", "display": "DeepSeek V4.1 Flash",
                  "thinking": "high", "context": 131072},
+    "glm": {"name": "zai-glm-5-3", "display": "GLM 5.3", "thinking": "high", "context": 131072},
+    "glm-flash": {"name": "zai-glm-5-3-flash", "display": "GLM 5.3 Flash", "thinking": "high",
+                  "context": 131072},
     "mistral": {"name": "mistral-vibe-cli-latest", "display": "Mistral Medium 3.5",
                 "thinking": "high", "context": 262144},
+    "mistral-fast": {"name": "mistral-vibe-cli-fast", "display": "Mistral Vibe Fast",
+                     "thinking": "high", "context": 131072},
+    "large": {"name": "mistral-large-latest", "display": "Mistral Large", "thinking": "high",
+              "context": 131072},
+    "magistral": {"name": "magistral-medium-latest", "display": "Magistral Medium",
+                  "thinking": "high", "context": 131072},
+    "devstral": {"name": "devstral-latest", "display": "Devstral", "thinking": "high",
+                 "context": 131072},
+    # no reasoning_effort on Codestral (400 «not enabled for this model»)
+    "codestral": {"name": "codestral-latest", "display": "Codestral", "thinking": "off",
+                  "levels": '["off"]', "context": 131072},
 }
 DEFAULT_MODEL = "deepseek"
 
@@ -69,7 +85,7 @@ provider = "mistral"
 alias = "{alias}"
 display_name = "{display}"
 thinking = "{thinking}"
-thinking_levels = ["off", "high"]
+thinking_levels = {levels}
 max_context_length = {context}
 """
 
@@ -87,7 +103,8 @@ def prepare_home(home, key, model=DEFAULT_MODEL):
     every launch: a changed key or model takes effect on the next one."""
     os.makedirs(home, mode=0o700, exist_ok=True)
     alias = model if model in MODELS else DEFAULT_MODEL
-    blocks = "".join(MODEL_BLOCK.format(alias=a, **m) for a, m in MODELS.items())
+    blocks = "".join(MODEL_BLOCK.format(alias=a, **dict({"levels": '["off", "high"]'}, **m))
+                     for a, m in MODELS.items())
     for name, body in ((".env", "MISTRAL_API_KEY=%s\n" % key),
                        ("config.toml", CONFIG.format(alias=alias, models=blocks))):
         path = os.path.join(home, name)

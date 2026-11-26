@@ -4366,7 +4366,7 @@ def bay_catalog():
     except Exception:
         vbin, vmodels, vdef = "", [], ""
     out.append({
-        "id": "vibe", "label": "Mistral Vibe (DeepSeek, Mistral)", "sub": "Mistral Vibe plan",
+        "id": "vibe", "label": "Mistral Vibe (DeepSeek, GLM, Mistral)", "sub": "Mistral Vibe plan",
         "state": "ok" if vbin and rc_providers.vibe_key() else ("key" if vbin else "install"),
         "install": "curl -LsSf https://mistral.ai/vibe/install.sh | bash",
         "key_url": "https://chat.mistral.ai/code/extensions?focus=key",

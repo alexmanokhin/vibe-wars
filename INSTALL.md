@@ -85,7 +85,11 @@ python3 make_units.py --workdir ~/rc-work --port PORT --max-live CAP
 The script prints where it wrote the units and the commands to enable them;
 run those (`systemctl --user daemon-reload`, `systemctl --user enable --now ...`).
 Then `loginctl enable-linger "$USER"` so the services keep running after logout
-(it may need `sudo`; ASK before using sudo).
+and come back by themselves after a reboot. If it fails without root, ASK the
+user to run `sudo loginctl enable-linger $USER` in their terminal and say why:
+without it Vibe Wars stops when they log out, and after a reboot nothing comes
+back until they log in again. Check it with `loginctl show-user "$USER" -p Linger`
+(it must say `Linger=yes`) and mention it in the report if it is still `no`.
 
 ## 5. Verify
 

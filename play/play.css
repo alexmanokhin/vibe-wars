@@ -678,8 +678,11 @@ body.dropping #dropov{display:block;animation:dzin .16s ease-out}
 .bay-key input{flex:1;min-width:200px;font-family:var(--mono);font-size:12.5px;padding:8px 10px;color:var(--ink);background:#0d0b24;border:2px solid var(--line2)}
 .bay-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
 .bay-code{font-family:var(--mono);font-size:16px;letter-spacing:.12em;color:#ffd23f;user-select:all}
-#bay-pair{align-self:flex-end;padding:9px 12px;font-size:11px}
-#bay-pair.on{border-color:#ffd23f;color:#ffd23f}
+.bay-addx{align-self:flex-start;background:none;border:2px dashed var(--line2);color:var(--ink2);font-family:var(--pix);font-size:9px;letter-spacing:.06em;padding:8px 12px;cursor:pointer}
+.bay-addx:hover{border-color:#4de1ff;color:#4de1ff}
+.bay-addx small{font-family:var(--mono);font-size:11px;letter-spacing:0;color:var(--muted);margin-left:6px;text-transform:none}
+.bay-gorow{justify-content:flex-end}
+#bay-xoff{align-self:flex-end;padding:9px 12px;font-size:10px}
 #bay-exrow{padding:10px 12px;border:2px solid #4de1ff55;background:rgba(77,225,255,.05)}
 #bay-exrow .bay-hint{flex-basis:100%}
 #bay-go:disabled{filter:grayscale(.8);opacity:.55;cursor:not-allowed}

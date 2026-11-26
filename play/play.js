@@ -2041,7 +2041,8 @@ function bayFillOpts(fresh) {
   ps.dataset.sig = sig;
   ps.value = keep && bayAgent(keep) ? keep : cat.default;
   bayAgentPick(!!keep);
-  if (fresh) BAY_PAIR = !!cat.pair;
+  // the executor is optional: every opening starts with one agent
+  if (fresh) BAY_PAIR = false;
   bayExFill(fresh);
   bayPairDraw();
 }
@@ -2132,8 +2133,7 @@ function bayPairDraw() {
   $('#bay-pair').hidden = !cat || bayModeOf() === 'continue';
   const on = !!(cat && BAY_PAIR && bayModeOf() !== 'continue');
   $('#bay-exrow').hidden = !on;
-  $('#bay-pair').classList.toggle('on', on);
-  $('#bay-pair').textContent = on ? '− EXECUTOR' : '+ EXECUTOR';
+  $('#bay-pair').hidden = !cat || bayModeOf() === 'continue' || on;
   $('#bay-prov-l span').textContent = on ? 'ORCHESTRATOR' : 'AGENT';
 }
 function bayExFill(fresh) {
@@ -2156,7 +2156,8 @@ function bayExPick(useLast, ex) {
   es.value = last && a.efforts.indexOf(ex.effort) >= 0 ? ex.effort : (a.effort_default || '');
 }
 $('#bay-xprov').onchange = () => { SFX.play('click'); bayExPick(false); };
-$('#bay-pair').onclick = () => { SFX.play('click'); BAY_PAIR = !BAY_PAIR; if (BAY_PAIR) bayExFill(false); bayPairDraw(); };
+$('#bay-pair').onclick = () => { SFX.play('click'); BAY_PAIR = true; bayExFill(true); bayPairDraw(); };
+$('#bay-xoff').onclick = () => { SFX.play('click'); BAY_PAIR = false; bayPairDraw(); };
 // what a launch from outside the bay (a cleanup task) runs on: the bay's default
 function bayChoice() {
   const c = bayCat(), a = c ? bayAgent(c.default) : null;

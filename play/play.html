@@ -119,16 +119,19 @@
             <label id="bay-prov-l"><span>AGENT</span><select id="bay-prov"></select></label>
             <label><span>SHIP CLASS</span><select id="bay-model"></select></label>
             <label id="bay-effort-l"><span>THRUST</span><select id="bay-effort"></select></label>
-            <button type="button" class="hb" id="bay-pair" title="Add a second agent: this one orchestrates, the second one executes">+ EXECUTOR</button>
-            <button class="go launch" id="bay-go"><i data-ico="rocket"></i><span id="bay-go-t">LAUNCH</span></button>
           </div>
+          <div id="bay-conn" hidden></div>
+          <button type="button" class="bay-addx" id="bay-pair" title="Optional: a second agent does the work, the first one plans and checks it">+ ADD AN EXECUTOR <small>optional</small></button>
           <div class="bay-row" id="bay-exrow" hidden>
             <label><span>EXECUTOR</span><select id="bay-xprov"></select></label>
             <label><span>SHIP CLASS</span><select id="bay-xmodel"></select></label>
             <label id="bay-xeffort-l"><span>THRUST</span><select id="bay-xeffort"></select></label>
-            <p class="bay-hint">the orchestrator plans and checks, the executor does the work; they talk to each other on their own</p>
+            <button type="button" class="hb" id="bay-xoff" title="Launch one agent, without an executor">REMOVE</button>
+            <p class="bay-hint">the agent above becomes the orchestrator: it plans and checks, the executor does the work, they talk to each other on their own</p>
           </div>
-          <div id="bay-conn" hidden></div>
+          <div class="bay-row bay-gorow">
+            <button class="go launch" id="bay-go"><i data-ico="rocket"></i><span id="bay-go-t">LAUNCH</span></button>
+          </div>
           <p class="bay-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> launches · the mic dictates, the text lands in the briefing · drop files here to attach them · it boots in the hangar and lands on the board, you can keep working meanwhile</p>
         </div>
         <div id="bay-seq" class="bay-in" hidden>

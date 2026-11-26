@@ -38,7 +38,9 @@ Not affiliated with Anthropic.
 No Claude subscription? In step 1 start your own agent in the same folder
 instead, and paste the same line into it:
 
-- ChatGPT: `mkdir -p ~/rc-work && cd ~/rc-work && codex`
+- ChatGPT: `mkdir -p ~/rc-work && cd ~/rc-work && codex --sandbox danger-full-access`
+  (Codex's own sandbox blocks the install commands on many Linux machines; the flag
+  lets it run them, as Claude Code does after you trust the folder)
 - Mistral Vibe plan: `mkdir -p ~/rc-work && cd ~/rc-work && vibe`
 - MiniMax Token Plan: `mkdir -p ~/rc-work && cd ~/rc-work && ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_AUTH_TOKEN=<your MiniMax plan key> ANTHROPIC_MODEL=MiniMax-M3 claude`
 
@@ -133,7 +135,9 @@ v0.1. Many code comments are still in Russian.
 Нет подписки Claude? На шаге 1 запустите в той же папке своего агента и
 вставьте в него ту же строку:
 
-- ChatGPT: `mkdir -p ~/rc-work && cd ~/rc-work && codex`
+- ChatGPT: `mkdir -p ~/rc-work && cd ~/rc-work && codex --sandbox danger-full-access`
+  (своя песочница Codex на многих Linux-машинах не даёт запускать команды установки;
+  с этим флагом он их выполняет, как Claude Code в доверенной папке)
 - Vibe-план Mistral: `mkdir -p ~/rc-work && cd ~/rc-work && vibe`
 - MiniMax Token Plan: `mkdir -p ~/rc-work && cd ~/rc-work && ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic ANTHROPIC_AUTH_TOKEN=<ключ плана MiniMax> ANTHROPIC_MODEL=MiniMax-M3 claude`
 

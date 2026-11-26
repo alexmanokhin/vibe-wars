@@ -4557,6 +4557,8 @@ def act_say(target):
     cpu0 = _cpu_seconds(pid0)
     scr = log_for(uuid)
     scr0 = _log_size(scr)
+    # Codex: bracketed paste and Enter a second later (see _codex_tui)
+    codex = _codex_tui(scr, uuid)
     try:
         fd = os.open(fifo, os.O_WRONLY | os.O_NONBLOCK)
     except OSError as exc:
@@ -4572,13 +4574,13 @@ def act_say(target):
         #     текст доезжает до поля ввода и остаётся в нём несобранным.
         os.write(fd, b"\x7f" * CLEAR_BACKSPACES)
         time.sleep(0.4)
-        if multiline:
+        if multiline or codex:
             _write_all(fd, b"\x1b[200~" + body.encode("utf-8") + b"\x1b[201~")
         else:
             # Однострочный путь оставлен как был: он проверен на живых сессиях,
             # и заворачивать его во вставку незачем.
             _write_all(fd, body.encode("utf-8"))
-        time.sleep(0.5 if multiline else 0.2)
+        time.sleep(1.2 if codex else 0.5 if multiline else 0.2)
         # once more right before Enter: a prompt that came up while we typed
         # must not get it
         late = open_prompt(uuid)
@@ -5814,6 +5816,31 @@ def _confirm_review(fifo, log, size0, wait=1.6):
     return True
 
 
+def _codex_tui(log, uuid=None):
+    """True when the session behind this log is a Codex TUI.
+
+    ⛔ 26.11: the OSC 7501 state marks show up only when the state changes;
+    an idle session's spinner title redraws push them out of the log tail, so
+    the tail alone took a Codex session for Claude Code and typed into it key
+    by key. Codex read that as a paste burst, the Enter became a new line and
+    the message sat unsent while the panel waited for it.
+    """
+    try:
+        if uuid and "/.codex/sessions/" in (_tx_path(uuid) or ""):
+            return True
+        if not log:
+            return False
+        import rc_codex
+        tail = rc_codex._tail(log)
+        with open(log, "rb") as fh:
+            head = fh.read(262144)
+        if b"app=vibe" in tail or b"app=vibe" in head:
+            return False
+        return bool(rc_codex.tui_state(log)) or b"\x1b]7501;" in head
+    except Exception:
+        return False
+
+
 def _type_into(fifo, text, log=None):
     """Набрать текст в канал ввода: очистить поле, вписать, отправить.
 
@@ -5835,7 +5862,7 @@ def _type_into(fifo, text, log=None):
     codex = False
     try:
         import rc_codex
-        codex = bool(log) and rc_codex.tui_state(log) != "" and b"app=vibe" not in rc_codex._tail(log)
+        codex = _codex_tui(log)
     except Exception:
         pass
     size0 = _log_size(log)

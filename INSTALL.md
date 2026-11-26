@@ -10,8 +10,8 @@ computer.
 The repo folder (where this file is) is called REPO below.
 
 If you are reading this from the web and the repo is not on this computer yet,
-clone it first: `git clone https://github.com/alexmanokhin/vibe-wars ~/vibe-wars`,
-then REPO is `~/vibe-wars`.
+clone it first, into exactly `~/vibe-wars` (not into the current folder):
+`git clone https://github.com/alexmanokhin/vibe-wars ~/vibe-wars`, then REPO is `~/vibe-wars`.
 
 ## 1. Check prerequisites
 

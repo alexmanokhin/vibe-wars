@@ -32,6 +32,9 @@ Found a bug or something does not work: write to [t.me/alexmanokhin](https://t.m
    Claude Code asks whether you trust the folder: press the down arrow to
    "Yes, I trust this folder", then Enter.
 
+   Prefer an app? Open the `~/rc-work` folder in the Claude desktop app (the
+   Code tab) or in the Codex app instead, and paste the line from step 2 there.
+
 2. Paste this into Claude Code:
 
    ```
@@ -131,6 +134,9 @@ v0.1. Many code comments are still in Russian.
 
    Claude Code спросит, доверяете ли вы папке: стрелкой вниз выберите
    «Yes, I trust this folder» и нажмите Enter.
+
+   Удобнее в приложении? Откройте папку `~/rc-work` в приложении Claude (вкладка
+   Code) или в приложении Codex и вставьте туда строку из шага 2.
 
 2. Вставьте в Claude Code:
 
